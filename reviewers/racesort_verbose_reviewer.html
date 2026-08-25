@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaceSort Verbose Human Reviewer</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0b0d10; --panel:#14181d; --panel2:#1a2027; --panel3:#101419;
+  --text:#edf2f7; --muted:#9aa6b2; --line:#2a323c;
+  --blue:#69b7ff; --green:#70df9d; --yellow:#ffd15c; --red:#ff7a7a; --purple:#c1b6ff; --cyan:#79e2e8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:30;background:rgba(11,13,16,.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:14px 20px}
+h1{margin:0 0 5px;font-size:22px}.sub{font-size:13px;color:var(--muted);line-height:1.45}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:11px}
+button,select,input,.file-label{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+button,.file-label{cursor:pointer}.file-label input{display:none}button.active{outline:2px solid var(--blue)}
+#stats{margin-left:auto;color:var(--muted);font-size:12px}
+main{max-width:1650px;margin:auto;padding:18px}
+.empty{padding:38px;border:1px dashed var(--line);border-radius:14px;text-align:center;color:var(--muted);line-height:1.65}
+.photo{border:1px solid var(--line);background:var(--panel);border-radius:14px;overflow:hidden;margin-bottom:22px}
+.photo-head{display:flex;justify-content:space-between;gap:12px;padding:12px 15px;border-bottom:1px solid var(--line)}
+.photo-head h2{margin:0;font-size:18px}.vehicles{display:grid;grid-template-columns:repeat(auto-fit,minmax(500px,1fr))}
+.vehicle{padding:14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.vehicle-title{font-size:18px;font-weight:800;margin-bottom:9px}
+.image{height:330px;background:#080a0c;border-radius:10px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.image img{width:100%;height:100%;object-fit:contain;cursor:zoom-in}.missing{color:var(--red);text-align:center;padding:20px;font-size:13px}
+.hero-result{margin:11px 0;padding:12px 14px;background:var(--panel3);border:1px solid var(--line);border-radius:11px}
+.hero-label{font-size:12px;color:var(--muted)}.hero-number{font-size:30px;font-weight:900;letter-spacing:.02em}
+.hero-number.unknown{color:var(--yellow)}.hero-number.known{color:var(--green)}
+.badges{margin-top:6px}.badge{display:inline-block;padding:4px 7px;margin:3px 4px 3px 0;border-radius:999px;font-size:11px;font-weight:750}
+.b-blue{background:#173d5a;color:#9fd2ff}.b-green{background:#173e29;color:#8be9b1}.b-yellow{background:#4b3b10;color:#ffdd78}
+.b-red{background:#4d2020;color:#ff9d9d}.b-purple{background:#322b58;color:#d3caff}.b-gray{background:#252b32;color:#c1cbd5}.b-cyan{background:#143f42;color:#9aedf1}
+.evidence{display:grid;grid-template-columns:1fr;gap:9px;margin-top:10px}
+.panel{border:1px solid var(--line);border-radius:10px;background:#11161b;overflow:hidden}
+.panel summary{cursor:pointer;padding:10px 12px;font-weight:750;background:#151b22}
+.panel-content{padding:10px 12px}
+.kv{display:grid;grid-template-columns:180px 1fr;gap:6px 11px;font-size:13px}
+.k{color:var(--muted)}.v{overflow-wrap:anywhere}
+.candidates{margin:0;padding-left:20px;font-size:13px}.candidates li{margin:5px 0}
+.raw{white-space:pre-wrap;overflow:auto;max-height:260px;background:#0b0e12;padding:9px;border-radius:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#ccd6e0}
+.validation{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.val-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.val-grid input,.val-grid select{width:100%}
+.buttons{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.buttons button[data-status="CORRECT"]{border-color:#286b47}.buttons button[data-status="WRONG"]{border-color:#763b3b}.buttons button[data-status="UNKNOWN"]{border-color:#7b641c}
+.note{width:100%;margin-top:8px}.status{margin-top:8px;font-size:12px;color:var(--muted)}
+.file-status{font-size:12px;color:var(--muted);margin-top:8px}
+#modal{display:none;position:fixed;inset:0;z-index:99;background:rgba(0,0,0,.94);padding:22px;align-items:center;justify-content:center}
+#modal.open{display:flex}#modal img{max-width:98vw;max-height:95vh;object-fit:contain}
+footer{padding:25px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:900px){.vehicles{grid-template-columns:1fr}.val-grid{grid-template-columns:1fr}#stats{width:100%;margin-left:0}}
+</style>
+</head>
+<body>
+<header>
+<h1>RaceSort Verbose Human Reviewer</h1>
+<div class="sub">
+  Dynamic evidence viewer. Load any combination of RaceSort result files; the page joins evidence by photo, vehicle index, and crop path.
+  Nothing about a motorcycle or race number is hard-coded.
+</div>
+<div class="toolbar">
+  <label class="file-label">Load RaceSort files
+    <input id="files" type="file" multiple accept=".csv,.json,text/csv,application/json">
+  </label>
+  <select id="decisionFilter">
+    <option value="ALL">All current results</option>
+    <option value="CONFIRMED">Fast-path confirmed</option>
+    <option value="REVIEW">Fast-path review</option>
+    <option value="UNKNOWN">Current UNKNOWN only</option>
+  </select>
+  <select id="humanFilter">
+    <option value="ALL">All human states</option>
+    <option value="UNVALIDATED">Unvalidated only</option>
+    <option value="CORRECT">Marked correct</option>
+    <option value="WRONG">Marked wrong</option>
+    <option value="UNKNOWN">Should be unknown</option>
+  </select>
+  <button id="multiBtn">Multi-bike only</button>
+  <button id="exportBtn">Export human validation</button>
+  <button id="clearBtn">Clear human validation</button>
+  <span id="stats"></span>
+</div>
+<div id="fileStatus" class="file-status">No evidence files loaded yet.</div>
+</header>
+
+<main id="root">
+<div class="empty">
+  Put this HTML file in your RaceSort project root beside <code>test-output/</code>.<br><br>
+  Click <strong>Load RaceSort files</strong> and multi-select as many of these as you have:<br>
+  <code>primary-filter-results.csv</code>,
+  <code>ocr-qwen-results.csv</code>,
+  <code>vehicle-registry.json</code>,
+  <code>review-matches.json</code>,
+  <code>candidate-evaluations.json</code>,
+  <code>photo-assignments.json</code>.<br><br>
+  You can load updated versions again without rebuilding this page.
+</div>
+</main>
+
+<footer>Offline. No external scripts, services, or internet access required.</footer>
+<div id="modal"><img id="modalImg" alt=""></div>
+
+<script>
+const STORE="racesort-verbose-human-review-v1";
+let primary=[],ocr=[],registry=null,matches=null,evaluations=null,assignments=null;
+let validation=JSON.parse(localStorage.getItem(STORE)||"{}");
+let decisionFilter="ALL",humanFilter="ALL",multiOnly=false;
+
+function parseCSV(text){
+ const a=[];let row=[],f="",q=false;
+ for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];
+  if(q){if(c=='"'&&n=='"'){f+='"';i++}else if(c=='"')q=false;else f+=c}
+  else{if(c=='"')q=true;else if(c==','){row.push(f);f=""}else if(c=='\n'){row.push(f);a.push(row);row=[];f=""}else if(c!='\r')f+=c}}
+ if(f.length||row.length){row.push(f);a.push(row)}
+ if(a.length<2)return[];
+ const h=a[0].map(x=>x.trim());
+ return a.slice(1).filter(r=>r.some(v=>String(v).trim())).map(r=>{const o={};h.forEach((k,i)=>o[k]=r[i]??"");return o})
+}
+function norm(p){return String(p||"").replaceAll("\\","/").replace(/^\.\//,"")}
+function base(p){return norm(p).split("/").pop()}
+function photoFromCrop(p){const s=norm(p).split("/");return s.length>=2?s[s.length-2]:""}
+function idxFromCrop(p){const m=base(p).match(/(?:motorcycle|car)-(\d+)/i);return m?Number(m[1]):null}
+function pretty(x){if(x===null||x===undefined||x==="")return "—";if(Array.isArray(x))return x.length?x.join(", "):"—";return String(x)}
+function hval(r){return validation[norm(r.crop)]||{status:"UNVALIDATED",ground_truth:"",primary_truth:"",readability:"",note:""}}
+function save(r,patch){validation[norm(r.crop)]={...hval(r),...patch};localStorage.setItem(STORE,JSON.stringify(validation));render()}
+function findByCrop(rows,crop){if(!rows)return null;const n=norm(crop),b=base(crop);return rows.find(x=>norm(x.crop)===n)||rows.find(x=>base(x.crop)===b&&photoFromCrop(x.crop)===photoFromCrop(crop))||null}
+function registryEvidence(photo,idx,crop){
+ if(!registry)return null;
+ const pjpg=photo+".JPG";
+ for(const [num,v] of Object.entries(registry.vehicles||{})){
+   for(const obs of (v.observations||[])){
+     if((obs.photo===pjpg||obs.photo===photo||String(obs.photo).replace(/\.[^.]+$/,"")===photo) && (obs.crop===base(crop)||norm(obs.crop)===norm(crop))){
+       return {kind:"confirmed",race_number:num,observation:obs,vehicle:v};
+     }
+   }
+ }
+ const rev=(registry.review_observations||[]).find(x=>{
+   const xp=String(x.photo||"").replace(/\.[^.]+$/,"");
+   return xp===photo && (Number(x.vehicle)===Number(idx)||base(x.crop)===base(crop));
+ });
+ return rev?{kind:"review",observation:rev}:null;
+}
+function matchEvidence(photo,idx,crop){
+ if(!matches)return null;
+ const list=matches.review_matches||matches;
+ return list.find(x=>String(x.photo||"").replace(/\.[^.]+$/,"")===photo && (Number(x.vehicle)===Number(idx)||base(x.crop)===base(crop)))||null;
+}
+function evalEvidence(photo,idx,crop){
+ if(!evaluations)return null;
+ const list=evaluations.evaluations||evaluations;
+ return list.find(x=>String(x.photo||"").replace(/\.[^.]+$/,"")===photo && (Number(x.vehicle)===Number(idx)||base(x.crop)===base(crop)))||null;
+}
+function assignmentEvidence(photo,idx){
+ if(!assignments)return null;
+ const photos=assignments.photos||[];
+ const p=photos.find(x=>String(x.photo||"").replace(/\.[^.]+$/,"")===photo);
+ if(!p)return null;
+ const relevant=(p.assignments||[]).filter(a=>(a.vehicle_indices||[]).map(Number).includes(Number(idx)));
+ const unresolved=(p.unresolved_vehicles||[]).filter(u=>Number(u.vehicle)===Number(idx));
+ return {photo:p,relevant,unresolved};
+}
+function profileFields(profile){
+ if(!profile)return null;
+ const mk=profile.make;
+ const make=(mk&&typeof mk==="object")?mk.value:mk;
+ return {
+  race_value:profile.race_number?.value,
+  race_status:profile.race_number?.status,
+  make:make,
+  model:(profile.model&&typeof profile.model==="object")?profile.model.value:profile.model,
+  colors:profile.colors?.primary||[],
+  leathers:profile.rider?.leathers_colors||[],
+  helmet:profile.rider?.helmet_colors||[],
+  plate_color:profile.number_plate?.color,
+  plate_visible:profile.number_plate?.visible,
+  plate_blank:profile.number_plate?.appears_blank,
+  racesort:profile._racesort||null
+ };
+}
+function buildRows(){
+ // Primary CSV is the visual base because it contains every crop and image path.
+ // If absent, OCR CSV can still provide a base list.
+ const source=primary.length?primary:ocr.map(o=>({
+   photo:photoFromCrop(o.crop),crop:o.crop,vehicles_in_photo:"",classification:"",relative_area:"",sharpness:"",relative_sharpness:""
+ }));
+ return source.map(p=>{
+  const crop=p.crop,photo=p.photo||photoFromCrop(crop),idx=idxFromCrop(crop);
+  const o=findByCrop(ocr,crop),reg=registryEvidence(photo,idx,crop),mat=matchEvidence(photo,idx,crop),ev=evalEvidence(photo,idx,crop),as=assignmentEvidence(photo,idx);
+  return {...p,photo,crop,idx,_ocr:o,_reg:reg,_match:mat,_eval:ev,_assign:as};
+ });
+}
+function badge(text,cls){return text?`<span class="badge ${cls}">${text}</span>`:""}
+function candidateList(mat){
+ if(!mat||!(mat.candidates||[]).length)return "—";
+ return `<ol class="candidates">${mat.candidates.slice(0,8).map(c=>`<li><strong>#${c.race_number}</strong> — best ${Number(c.best_similarity??c.similarity??0).toFixed(4)}${c.mean_similarity!==undefined?`, mean ${Number(c.mean_similarity).toFixed(4)}`:""}${c.supporting_sightings!==undefined?`, refs ${c.supporting_sightings}`:""}</li>`).join("")}</ol>`;
+}
+function evaluatedList(ev){
+ if(!ev||!(ev.candidates||[]).length)return "—";
+ return `<ol class="candidates">${ev.candidates.slice(0,8).map(c=>`<li><strong>#${c.race_number}</strong> — ${c.classification}; visual ${Number(c.best_similarity||0).toFixed(4)}; make ${pretty(c.make_status)}; colors ${c.vehicle_color_overlap==null?"—":Number(c.vehicle_color_overlap).toFixed(2)}<br><span class="k">${(c.reasons||[]).join(" · ")}</span></li>`).join("")}</ol>`;
+}
+function render(){
+ const root=document.getElementById("root"),all=buildRows();
+ if(!all.length){root.innerHTML='<div class="empty">Load at least <strong>primary-filter-results.csv</strong> or <strong>ocr-qwen-results.csv</strong>.</div>';return}
+ const filtered=all.filter(r=>{
+   const hv=hval(r),dec=r._ocr?.decision||"";
+   if(decisionFilter==="CONFIRMED"&&dec!=="CONFIRMED")return false;
+   if(decisionFilter==="REVIEW"&&dec!=="REVIEW")return false;
+   if(decisionFilter==="UNKNOWN"&&r._ocr?.final_number)return false;
+   if(humanFilter!=="ALL"&&hv.status!==humanFilter)return false;
+   if(multiOnly&&Number(r.vehicles_in_photo)<=1)return false;
+   return true;
+ });
+ const groups=new Map();filtered.forEach(r=>{if(!groups.has(r.photo))groups.set(r.photo,[]);groups.get(r.photo).push(r)});
+ root.innerHTML="";
+ for(const [photo,rs] of groups){
+   const sec=document.createElement("section");sec.className="photo";
+   const total=all.filter(x=>x.photo===photo).length;
+   sec.innerHTML=`<div class="photo-head"><h2>${photo}</h2><div class="sub">${total} detected vehicle${total===1?"":"s"}</div></div><div class="vehicles"></div>`;
+   const wrap=sec.querySelector(".vehicles");
+   for(const r of rs){
+    const o=r._ocr||{},reg=r._reg,mat=r._match,ev=r._eval,as=r._assign,hv=hval(r);
+    const final=o.final_number||null;
+    const regProfile=profileFields(reg?.observation?.profile);
+    const historicalProfileNum=reg?.observation?.profile_number;
+    const historicalVerify=reg?.observation?.verification_number;
+    const historicalDecision=reg?.observation?.decision;
+    const card=document.createElement("article");card.className="vehicle";
+    card.innerHTML=`
+      <div class="vehicle-title">${r.idx?"Motorcycle "+r.idx:base(r.crop)}</div>
+      <div class="image"><img src="${r.crop}" alt="${r.crop}"></div>
+
+      <div class="hero-result">
+        <div class="hero-label">Current OCR → Qwen fast-path result</div>
+        <div class="hero-number ${final?"known":"unknown"}">${final?"#"+final:"UNKNOWN"}</div>
+        <div class="badges">
+          ${badge(o.decision||"NO FAST-PATH DATA",o.decision==="CONFIRMED"?"b-green":"b-yellow")}
+          ${r.classification?badge(r.classification,"b-blue"):""}
+          ${reg?.kind==="confirmed"?badge("HISTORICALLY CONFIRMED #"+reg.race_number,"b-purple"):""}
+          ${ev?.recommended_candidate?badge("FUSION → #"+ev.recommended_candidate+" "+ev.recommended_classification,"b-cyan"):""}
+        </div>
+      </div>
+
+      <div class="evidence">
+        <details class="panel" open>
+          <summary>1. Current fast-path evidence — OCR + Qwen</summary>
+          <div class="panel-content kv">
+            <div class="k">OCR candidates</div><div class="v">${pretty(o.ocr_candidates)}</div>
+            <div class="k">OCR seconds</div><div class="v">${pretty(o.ocr_seconds)}</div>
+            <div class="k">Qwen called</div><div class="v">${pretty(o.qwen_called)}</div>
+            <div class="k">Qwen number</div><div class="v">${pretty(o.qwen_number)}</div>
+            <div class="k">Qwen seconds</div><div class="v">${pretty(o.qwen_seconds)}</div>
+            <div class="k">Qwen raw</div><div class="v">${pretty(o.qwen_raw)}</div>
+            <div class="k">Fast decision</div><div class="v">${pretty(o.decision)}</div>
+          </div>
+        </details>
+
+        <details class="panel" open>
+          <summary>2. Primary / sellable-subject evidence</summary>
+          <div class="panel-content kv">
+            <div class="k">Predicted role</div><div class="v">${pretty(r.classification)}</div>
+            <div class="k">Vehicles in photo</div><div class="v">${pretty(r.vehicles_in_photo)}</div>
+            <div class="k">Relative area</div><div class="v">${pretty(r.relative_area)}</div>
+            <div class="k">Sharpness</div><div class="v">${pretty(r.sharpness)}</div>
+            <div class="k">Relative sharpness</div><div class="v">${pretty(r.relative_sharpness)}</div>
+          </div>
+        </details>
+
+        <details class="panel" open>
+          <summary>3. Historical rich Qwen profile / earlier evidence</summary>
+          <div class="panel-content">
+            ${regProfile?`
+            <div class="kv">
+              <div class="k">Earlier profile number</div><div class="v">${pretty(regProfile.race_value)}</div>
+              <div class="k">Earlier number status</div><div class="v">${pretty(regProfile.race_status)}</div>
+              <div class="k">Earlier independent verification</div><div class="v">${pretty(historicalVerify)}</div>
+              <div class="k">Earlier decision</div><div class="v">${pretty(historicalDecision)}</div>
+              <div class="k">Make</div><div class="v">${pretty(regProfile.make)}</div>
+              <div class="k">Model</div><div class="v">${pretty(regProfile.model)}</div>
+              <div class="k">Vehicle colors</div><div class="v">${pretty(regProfile.colors)}</div>
+              <div class="k">Rider leathers</div><div class="v">${pretty(regProfile.leathers)}</div>
+              <div class="k">Helmet colors</div><div class="v">${pretty(regProfile.helmet)}</div>
+              <div class="k">Plate color</div><div class="v">${pretty(regProfile.plate_color)}</div>
+              <div class="k">Plate visible</div><div class="v">${pretty(regProfile.plate_visible)}</div>
+              <div class="k">Plate appears blank</div><div class="v">${pretty(regProfile.plate_blank)}</div>
+              <div class="k">Registry status</div><div class="v">${reg.kind==="confirmed"?"Confirmed identity #"+reg.race_number:"Review observation"}</div>
+            </div>`:`<div class="k">No matching historical registry profile loaded for this crop.</div>`}
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>4. DINOv2 visual registry matching</summary>
+          <div class="panel-content">
+            <div class="kv">
+              <div class="k">Profile-number observation</div><div class="v">${pretty(mat?.profile_number)}</div>
+              <div class="k">Verification observation</div><div class="v">${pretty(mat?.verification_number)}</div>
+              <div class="k">Top best-similarity margin</div><div class="v">${pretty(mat?.best_similarity_margin??mat?.top_margin)}</div>
+              <div class="k">Top mean-similarity margin</div><div class="v">${pretty(mat?.mean_similarity_margin)}</div>
+            </div>
+            <div style="margin-top:8px"><strong>Ranked visual candidates</strong>${candidateList(mat)}</div>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>5. Evidence-fusion evaluation</summary>
+          <div class="panel-content">
+            <div class="kv">
+              <div class="k">Recommended candidate</div><div class="v">${ev?.recommended_candidate?"#"+ev.recommended_candidate:"—"}</div>
+              <div class="k">Classification</div><div class="v">${pretty(ev?.recommended_classification)}</div>
+              <div class="k">Profile-number evidence</div><div class="v">${pretty(ev?.profile_number)}</div>
+              <div class="k">Verification evidence</div><div class="v">${pretty(ev?.verification_number)}</div>
+            </div>
+            <div style="margin-top:8px"><strong>Evaluated candidates</strong>${evaluatedList(ev)}</div>
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>6. Photo-level assignment / provenance</summary>
+          <div class="panel-content">
+            ${as?`
+            <div class="kv">
+              <div class="k">Assigned numbers for photo</div><div class="v">${pretty(as.photo.assigned_numbers)}</div>
+              <div class="k">READ numbers</div><div class="v">${pretty(as.photo.read_numbers)}</div>
+              <div class="k">INFERRED numbers</div><div class="v">${pretty(as.photo.inferred_numbers)}</div>
+              <div class="k">Photo needs review</div><div class="v">${pretty(as.photo.needs_review)}</div>
+              <div class="k">Assignments tied to this crop</div><div class="v">${as.relevant.length?as.relevant.map(x=>"#"+x.race_number+" "+x.source).join(", "):"—"}</div>
+              <div class="k">Unresolved record</div><div class="v">${as.unresolved.length?JSON.stringify(as.unresolved):"—"}</div>
+            </div>`:`<div class="k">No photo-assignment evidence loaded.</div>`}
+          </div>
+        </details>
+
+        <details class="panel">
+          <summary>7. Raw historical registry record</summary>
+          <div class="panel-content raw">${reg?JSON.stringify(reg,null,2):"No registry record for this crop."}</div>
+        </details>
+      </div>
+
+      <div class="validation">
+        <strong>Your ground truth</strong>
+        <div class="val-grid" style="margin-top:8px">
+          <input class="ground" placeholder="Actual race number (e.g. 52 or 007)" value="${hv.ground_truth||""}">
+          <select class="readability">
+            <option value="" ${!hv.readability?"selected":""}>Number readability…</option>
+            <option value="CLEAR" ${hv.readability==="CLEAR"?"selected":""}>Clear/readable</option>
+            <option value="BLURRY_BUT_READABLE" ${hv.readability==="BLURRY_BUT_READABLE"?"selected":""}>Blurry but readable</option>
+            <option value="NOT_READABLE" ${hv.readability==="NOT_READABLE"?"selected":""}>Not readable</option>
+            <option value="NO_NUMBER_VISIBLE" ${hv.readability==="NO_NUMBER_VISIBLE"?"selected":""}>No number visible / blank</option>
+          </select>
+          <select class="primaryTruth">
+            <option value="" ${!hv.primary_truth?"selected":""}>Vehicle role…</option>
+            <option value="PRIMARY" ${hv.primary_truth==="PRIMARY"?"selected":""}>Primary / should tag</option>
+            <option value="SECONDARY" ${hv.primary_truth==="SECONDARY"?"selected":""}>Secondary / should tag</option>
+            <option value="NON_PRIMARY" ${hv.primary_truth==="NON_PRIMARY"?"selected":""}>Non-primary / don't tag</option>
+          </select>
+          <div></div>
+        </div>
+        <div class="buttons">
+          <button data-status="CORRECT" class="${hv.status==="CORRECT"?"active":""}">Current result correct</button>
+          <button data-status="WRONG" class="${hv.status==="WRONG"?"active":""}">Current result wrong/missed</button>
+          <button data-status="UNKNOWN" class="${hv.status==="UNKNOWN"?"active":""}">Should remain UNKNOWN</button>
+        </div>
+        <input class="note" placeholder="What do you see? e.g. '52 is clear as day', 'background bike too blurry to sell'…" value="${hv.note||""}">
+        <div class="status">Human review: <strong>${hv.status}</strong></div>
+      </div>`;
+    const img=card.querySelector("img");
+    img.onerror=()=>img.parentElement.innerHTML=`<div class="missing">Image not found.<br><code>${r.crop}</code><br><br>Place this HTML file in your RaceSort project root beside <code>test-output/</code>.</div>`;
+    img.onclick=()=>{document.getElementById("modalImg").src=r.crop;document.getElementById("modal").classList.add("open")};
+    card.querySelectorAll("[data-status]").forEach(b=>b.onclick=()=>save(r,{status:b.dataset.status}));
+    card.querySelector(".ground").onchange=e=>save(r,{ground_truth:e.target.value.trim().toUpperCase()});
+    card.querySelector(".readability").onchange=e=>save(r,{readability:e.target.value});
+    card.querySelector(".primaryTruth").onchange=e=>save(r,{primary_truth:e.target.value});
+    card.querySelector(".note").onchange=e=>save(r,{note:e.target.value.trim()});
+    wrap.appendChild(card);
+   }
+   root.appendChild(sec);
+ }
+ const validated=all.filter(r=>hval(r).status!=="UNVALIDATED").length;
+ document.getElementById("stats").textContent=`${filtered.length} shown · ${validated}/${all.length} reviewed`;
+}
+async function loadFiles(files){
+ const names=[];
+ for(const f of files){
+   const txt=await f.text(),name=f.name.toLowerCase();names.push(f.name);
+   try{
+    if(name.endsWith(".csv")){
+      const rows=parseCSV(txt);
+      if(rows.length&&("relative_area" in rows[0])&&("classification" in rows[0]))primary=rows;
+      else if(rows.length&&("ocr_candidates" in rows[0])&&("qwen_number" in rows[0]))ocr=rows;
+    }else if(name.endsWith(".json")){
+      const obj=JSON.parse(txt);
+      if(obj.vehicles&&obj.review_observations)registry=obj;
+      else if(obj.review_matches)matches=obj;
+      else if(obj.evaluations)evaluations=obj;
+      else if(obj.photos&&obj.assignment_policy)assignments=obj;
+    }
+   }catch(e){alert("Could not parse "+f.name+": "+e.message)}
+ }
+ document.getElementById("fileStatus").textContent=
+   `Loaded: ${names.join(", ")} | primary=${primary.length} rows, OCR/Qwen=${ocr.length} rows, registry=${!!registry}, DINO=${!!matches}, fusion=${!!evaluations}, assignments=${!!assignments}`;
+ render();
+}
+document.getElementById("files").onchange=e=>loadFiles([...e.target.files]);
+document.getElementById("decisionFilter").onchange=e=>{decisionFilter=e.target.value;render()};
+document.getElementById("humanFilter").onchange=e=>{humanFilter=e.target.value;render()};
+document.getElementById("multiBtn").onclick=e=>{multiOnly=!multiOnly;e.target.classList.toggle("active",multiOnly);render()};
+document.getElementById("modal").onclick=()=>document.getElementById("modal").classList.remove("open");
+document.getElementById("clearBtn").onclick=()=>{if(confirm("Clear all saved human review data?")){validation={};localStorage.removeItem(STORE);render()}};
+document.getElementById("exportBtn").onclick=()=>{
+ const rows=buildRows(); if(!rows.length)return;
+ const heads=["photo","crop","vehicle","current_fast_number","current_fast_decision","ocr_candidates","qwen_number","predicted_role","relative_area","sharpness","historic_registry_identity","historic_profile_number","historic_verification","dino_top_candidate","dino_top_similarity","fusion_candidate","fusion_classification","human_status","ground_truth","number_readability","human_vehicle_role","note"];
+ const data=[heads];
+ for(const r of rows){
+   const hv=hval(r),o=r._ocr||{},reg=r._reg,mat=r._match,ev=r._eval;
+   const top=mat?.candidates?.[0]||{};
+   data.push([r.photo,r.crop,r.idx,o.final_number||"",o.decision||"",o.ocr_candidates||"",o.qwen_number||"",r.classification||"",r.relative_area||"",r.sharpness||"",reg?.kind==="confirmed"?reg.race_number:"",reg?.observation?.profile_number??reg?.observation?.profile?.race_number?.value??"",reg?.observation?.verification_number??"",top.race_number||"",top.best_similarity??top.similarity??"",ev?.recommended_candidate||"",ev?.recommended_classification||"",hv.status,hv.ground_truth,hv.readability,hv.primary_truth,hv.note]);
+ }
+ const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+ const text=data.map(r=>r.map(q).join(",")).join("\n");
+ const blob=new Blob([text],{type:"text/csv;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download="racesort-verbose-human-validation.csv";a.click();URL.revokeObjectURL(url);
+};
+</script>
+</body>
+</html>

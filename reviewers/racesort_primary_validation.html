@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaceSort Primary Vehicle Validation</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0b0d10;
+  --panel:#14181d;
+  --panel2:#1a2027;
+  --text:#edf2f7;
+  --muted:#9aa6b2;
+  --line:#2a323c;
+  --primary:#66b3ff;
+  --secondary:#f2c14e;
+  --nonprimary:#9b8afb;
+  --ok:#2ecc71;
+  --bad:#ff6b6b;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+header {
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:rgba(11,13,16,.97);
+  border-bottom:1px solid var(--line);
+  padding:16px 22px;
+}
+h1 { margin:0 0 6px; font-size:22px; }
+.sub { color:var(--muted); font-size:13px; line-height:1.45; }
+.toolbar {
+  display:flex;
+  gap:9px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin-top:12px;
+}
+button, select, input {
+  background:var(--panel2);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:9px 11px;
+  font:inherit;
+}
+button { cursor:pointer; }
+button:hover { border-color:#52606f; }
+button.active { outline:2px solid var(--primary); }
+.file-label {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  background:var(--panel2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:9px 11px;
+}
+.file-label input { display:none; }
+#stats { color:var(--muted); font-size:13px; margin-left:auto; }
+main { max-width:1500px; margin:0 auto; padding:20px; }
+.empty {
+  border:1px dashed var(--line);
+  border-radius:12px;
+  padding:38px 24px;
+  text-align:center;
+  color:var(--muted);
+}
+.photo-group {
+  margin-bottom:24px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  overflow:hidden;
+  background:var(--panel);
+}
+.photo-header {
+  padding:13px 16px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+}
+.photo-header h2 { margin:0; font-size:17px; }
+.vehicle-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(360px,1fr));
+}
+.card {
+  padding:14px;
+  border-right:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+}
+.image-wrap {
+  background:#080a0c;
+  border-radius:10px;
+  height:300px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+.image-wrap img {
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  cursor:zoom-in;
+}
+.missing {
+  color:var(--bad);
+  padding:20px;
+  text-align:center;
+  font-size:13px;
+}
+.badges { margin:11px 0 8px; }
+.badge {
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  margin-right:5px;
+}
+.badge.primary { background:#153958; color:#8fc9ff; }
+.badge.secondary { background:#4a3d16; color:#f9d86a; }
+.badge.nonprimary { background:#332c59; color:#c8bcff; }
+.grid {
+  display:grid;
+  grid-template-columns:150px 1fr;
+  gap:6px 10px;
+  font-size:13px;
+  margin-bottom:12px;
+}
+.label { color:var(--muted); }
+.validation {
+  border-top:1px solid var(--line);
+  padding-top:12px;
+}
+.validation-buttons {
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.validation-buttons button[data-human="PRIMARY"] { border-color:#285e88; }
+.validation-buttons button[data-human="SECONDARY"] { border-color:#75611d; }
+.validation-buttons button[data-human="NON_PRIMARY"] { border-color:#53468e; }
+.validation-buttons button[data-human="SKIP"] { border-color:#6b3d3d; }
+.note {
+  width:100%;
+  margin-top:8px;
+}
+.status {
+  margin-top:8px;
+  color:var(--muted);
+  font-size:12px;
+}
+#modal {
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:99;
+  background:rgba(0,0,0,.94);
+  padding:25px;
+  align-items:center;
+  justify-content:center;
+}
+#modal.open { display:flex; }
+#modal img {
+  max-width:97vw;
+  max-height:94vh;
+  object-fit:contain;
+}
+footer {
+  padding:26px;
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+}
+@media(max-width:800px){
+  #stats { width:100%; margin-left:0; }
+  .vehicle-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>RaceSort Primary Vehicle Validation</h1>
+  <div class="sub">
+    Dynamic validator for <code>primary-filter-results.csv</code>. Choose any compatible CSV;
+    the page renders whatever rows are in that file. Human decisions are saved locally in your browser and can be exported.
+  </div>
+  <div class="toolbar">
+    <label class="file-label">Load CSV
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+    </label>
+
+    <select id="predictionFilter">
+      <option value="ALL">All predicted classes</option>
+      <option value="PRIMARY_CANDIDATE">Predicted primary</option>
+      <option value="SECONDARY_CANDIDATE">Predicted secondary</option>
+      <option value="NON_PRIMARY_CANDIDATE">Predicted non-primary</option>
+    </select>
+
+    <select id="validationFilter">
+      <option value="ALL">All human states</option>
+      <option value="UNVALIDATED">Unvalidated only</option>
+      <option value="PRIMARY">Human: primary</option>
+      <option value="SECONDARY">Human: secondary</option>
+      <option value="NON_PRIMARY">Human: non-primary</option>
+      <option value="SKIP">Human: ignore/skip</option>
+    </select>
+
+    <button id="onlyMultiBtn">Multi-bike only</button>
+    <button id="exportBtn">Export validation CSV</button>
+    <button id="clearBtn">Clear saved validation</button>
+    <span id="stats"></span>
+  </div>
+</header>
+
+<main id="root">
+  <div class="empty">
+    Load <strong>test-output/primary-filter-results.csv</strong> to begin.<br><br>
+    For crop images to resolve automatically, place this HTML file in the RaceSort project root beside <code>test-output/</code>.
+  </div>
+</main>
+
+<footer>
+  No internet connection or external JavaScript libraries are required.
+</footer>
+
+<div id="modal"><img id="modalImg" alt=""></div>
+
+<script>
+const STORAGE_KEY = "racesort-primary-validation-v1";
+let rows = [];
+let validation = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+let predictionFilter = "ALL";
+let validationFilter = "ALL";
+let onlyMulti = false;
+
+function parseCSV(text) {
+  const result = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (quoted) {
+      if (ch === '"' && next === '"') {
+        field += '"';
+        i++;
+      } else if (ch === '"') {
+        quoted = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') {
+        quoted = true;
+      } else if (ch === ',') {
+        row.push(field);
+        field = "";
+      } else if (ch === '\n') {
+        row.push(field);
+        result.push(row);
+        row = [];
+        field = "";
+      } else if (ch !== '\r') {
+        field += ch;
+      }
+    }
+  }
+  if (field.length || row.length) {
+    row.push(field);
+    result.push(row);
+  }
+
+  if (result.length < 2) return [];
+  const headers = result[0].map(h => h.trim());
+
+  return result.slice(1)
+    .filter(r => r.some(v => String(v).trim() !== ""))
+    .map(r => {
+      const obj = {};
+      headers.forEach((h, idx) => obj[h] = r[idx] ?? "");
+      return obj;
+    });
+}
+
+function humanFor(row) {
+  return validation[row.crop] || {
+    human_classification: "UNVALIDATED",
+    note: ""
+  };
+}
+
+function saveHuman(row, patch) {
+  validation[row.crop] = {...humanFor(row), ...patch};
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(validation));
+  render();
+}
+
+function badgeClass(pred) {
+  if (pred === "PRIMARY_CANDIDATE") return "primary";
+  if (pred === "SECONDARY_CANDIDATE") return "secondary";
+  return "nonprimary";
+}
+
+function fmtNum(value, digits=3) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : value;
+}
+
+function visibleRows() {
+  return rows.filter(r => {
+    const h = humanFor(r);
+    if (predictionFilter !== "ALL" && r.classification !== predictionFilter) return false;
+    if (validationFilter !== "ALL" && h.human_classification !== validationFilter) return false;
+    if (onlyMulti && Number(r.vehicles_in_photo) <= 1) return false;
+    return true;
+  });
+}
+
+function groupByPhoto(input) {
+  const map = new Map();
+  for (const r of input) {
+    if (!map.has(r.photo)) map.set(r.photo, []);
+    map.get(r.photo).push(r);
+  }
+  return [...map.entries()];
+}
+
+function render() {
+  const root = document.getElementById("root");
+
+  if (!rows.length) {
+    root.innerHTML = `<div class="empty">
+      Load <strong>test-output/primary-filter-results.csv</strong> to begin.<br><br>
+      This page is dynamic: it will render any compatible CSV you choose.
+    </div>`;
+    document.getElementById("stats").textContent = "";
+    return;
+  }
+
+  const filtered = visibleRows();
+  const groups = groupByPhoto(filtered);
+  root.innerHTML = "";
+
+  for (const [photo, photoRows] of groups) {
+    const section = document.createElement("section");
+    section.className = "photo-group";
+
+    const fullPhotoCount = rows.filter(r => r.photo === photo).length;
+    section.innerHTML = `
+      <div class="photo-header">
+        <h2>${photo}</h2>
+        <div class="sub">${fullPhotoCount} detected vehicle${fullPhotoCount === 1 ? "" : "s"}</div>
+      </div>
+      <div class="vehicle-grid"></div>
+    `;
+
+    const grid = section.querySelector(".vehicle-grid");
+
+    for (const row of photoRows) {
+      const h = humanFor(row);
+      const card = document.createElement("article");
+      card.className = "card";
+
+      card.innerHTML = `
+        <div class="image-wrap">
+          <img src="${row.crop}" alt="${row.crop}">
+        </div>
+
+        <div class="badges">
+          <span class="badge ${badgeClass(row.classification)}">${row.classification}</span>
+        </div>
+
+        <div class="grid">
+          <div class="label">Crop</div><div>${row.crop.split("/").pop()}</div>
+          <div class="label">Vehicles in photo</div><div>${row.vehicles_in_photo}</div>
+          <div class="label">Crop size</div><div>${row.width} × ${row.height}</div>
+          <div class="label">Relative area</div><div>${fmtNum(row.relative_area)}</div>
+          <div class="label">Sharpness</div><div>${fmtNum(row.sharpness, 1)}</div>
+          <div class="label">Relative sharpness</div><div>${fmtNum(row.relative_sharpness)}</div>
+        </div>
+
+        <div class="validation">
+          <div class="validation-buttons">
+            <button data-human="PRIMARY" class="${h.human_classification === "PRIMARY" ? "active" : ""}">Primary</button>
+            <button data-human="SECONDARY" class="${h.human_classification === "SECONDARY" ? "active" : ""}">Secondary</button>
+            <button data-human="NON_PRIMARY" class="${h.human_classification === "NON_PRIMARY" ? "active" : ""}">Non-primary</button>
+            <button data-human="SKIP" class="${h.human_classification === "SKIP" ? "active" : ""}">Ignore / skip</button>
+          </div>
+          <input class="note" placeholder="Optional note: tiny background bike, blurry, obscured..." value="${h.note || ""}">
+          <div class="status">Human classification: <strong>${h.human_classification}</strong></div>
+        </div>
+      `;
+
+      const img = card.querySelector("img");
+      img.onerror = () => {
+        const wrap = img.parentElement;
+        wrap.innerHTML = `<div class="missing">
+          Image not found.<br><br>
+          Expected relative path:<br><code>${row.crop}</code><br><br>
+          Put this HTML file in your RaceSort project root beside <code>test-output/</code>.
+        </div>`;
+      };
+      img.addEventListener("click", () => {
+        document.getElementById("modalImg").src = row.crop;
+        document.getElementById("modal").classList.add("open");
+      });
+
+      card.querySelectorAll("[data-human]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          saveHuman(row, {human_classification: btn.dataset.human});
+        });
+      });
+
+      const note = card.querySelector(".note");
+      note.addEventListener("change", () => {
+        saveHuman(row, {note: note.value.trim()});
+      });
+
+      grid.appendChild(card);
+    }
+
+    root.appendChild(section);
+  }
+
+  const validatedCount = rows.filter(r => humanFor(r).human_classification !== "UNVALIDATED").length;
+  document.getElementById("stats").textContent =
+    `${filtered.length} shown · ${validatedCount}/${rows.length} validated`;
+}
+
+document.getElementById("csvFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  rows = parseCSV(text);
+
+  const required = [
+    "photo","crop","vehicles_in_photo","width","height",
+    "relative_area","sharpness","relative_sharpness","classification"
+  ];
+  const missing = required.filter(k => rows.length && !(k in rows[0]));
+  if (missing.length) {
+    alert("CSV is missing required columns: " + missing.join(", "));
+    rows = [];
+  }
+  render();
+});
+
+document.getElementById("predictionFilter").addEventListener("change", e => {
+  predictionFilter = e.target.value;
+  render();
+});
+
+document.getElementById("validationFilter").addEventListener("change", e => {
+  validationFilter = e.target.value;
+  render();
+});
+
+document.getElementById("onlyMultiBtn").addEventListener("click", e => {
+  onlyMulti = !onlyMulti;
+  e.target.classList.toggle("active", onlyMulti);
+  render();
+});
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (confirm("Clear all saved primary/non-primary validation?")) {
+    validation = {};
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  }
+});
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  if (!rows.length) return;
+
+  const headers = [
+    "photo","crop","vehicles_in_photo","width","height","pixel_area",
+    "relative_area","sharpness","relative_sharpness",
+    "predicted_classification","human_classification","note"
+  ];
+
+  const output = [headers];
+
+  for (const row of rows) {
+    const h = humanFor(row);
+    output.push([
+      row.photo,row.crop,row.vehicles_in_photo,row.width,row.height,row.pixel_area,
+      row.relative_area,row.sharpness,row.relative_sharpness,row.classification,
+      h.human_classification,h.note
+    ]);
+  }
+
+  const quote = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+  const text = output.map(r => r.map(quote).join(",")).join("\n");
+  const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "primary-filter-human-validation.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("modal").addEventListener("click", () => {
+  document.getElementById("modal").classList.remove("open");
+});
+</script>
+</body>
+</html>

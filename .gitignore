@@ -1,0 +1,10 @@
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+
+# Generated working output. Originals and regression baselines remain trackable.
+test-output/
+temp/
+working/output/
+working/review/

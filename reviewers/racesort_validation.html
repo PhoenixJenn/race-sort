@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RaceSort Human Validation</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0b0d10;
+  --panel:#14181d;
+  --panel2:#1a2027;
+  --text:#edf2f7;
+  --muted:#9aa6b2;
+  --line:#2a323c;
+  --ok:#2ecc71;
+  --warn:#f4b942;
+  --bad:#ff6b6b;
+  --accent:#62a8ff;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+header {
+  position:sticky; top:0; z-index:20;
+  background:rgba(11,13,16,.96); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  padding:16px 22px;
+}
+h1 { margin:0 0 6px; font-size:22px; }
+.sub { color:var(--muted); font-size:13px; }
+.toolbar {
+  display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:12px;
+}
+button, select, input {
+  background:var(--panel2); color:var(--text); border:1px solid var(--line);
+  border-radius:8px; padding:9px 11px; font:inherit;
+}
+button { cursor:pointer; }
+button:hover { border-color:#536173; }
+button.active { outline:2px solid var(--accent); }
+button.good { border-color:#246d45; }
+button.bad { border-color:#7b3737; }
+button.unknown { border-color:#756326; }
+#stats {
+  margin-left:auto; color:var(--muted); font-size:13px;
+}
+main { padding:20px; max-width:1500px; margin:0 auto; }
+.card {
+  display:grid; grid-template-columns:minmax(300px, 44%) 1fr;
+  gap:18px; padding:16px; margin-bottom:16px;
+  border:1px solid var(--line); background:var(--panel); border-radius:12px;
+}
+.card.confirmed { border-left:5px solid var(--ok); }
+.card.review { border-left:5px solid var(--warn); }
+.photo-wrap {
+  background:#080a0c; border-radius:10px; min-height:260px;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.photo-wrap img {
+  width:100%; max-height:500px; object-fit:contain; cursor:zoom-in;
+}
+.meta h2 { margin:0 0 10px; font-size:18px; word-break:break-all; }
+.badge {
+  display:inline-block; padding:4px 8px; border-radius:999px;
+  font-size:12px; font-weight:700; margin-right:6px;
+}
+.badge.confirmed { background:#153d28; color:#80e2a9; }
+.badge.review { background:#493b14; color:#ffd56d; }
+.grid {
+  display:grid; grid-template-columns:170px 1fr; gap:7px 12px;
+  margin:14px 0; font-size:14px;
+}
+.label { color:var(--muted); }
+.value { word-break:break-word; }
+.validation {
+  border-top:1px solid var(--line); padding-top:13px; margin-top:13px;
+}
+.validation-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.gt { width:170px; }
+.note { width:min(100%, 520px); margin-top:8px; }
+.status-text { margin-top:9px; font-size:13px; color:var(--muted); }
+.missing {
+  color:var(--bad); padding:18px; text-align:center; line-height:1.5;
+}
+footer { color:var(--muted); text-align:center; padding:30px; font-size:12px; }
+#modal {
+  display:none; position:fixed; inset:0; z-index:99;
+  background:rgba(0,0,0,.92); padding:30px;
+  align-items:center; justify-content:center;
+}
+#modal img { max-width:96vw; max-height:94vh; object-fit:contain; }
+#modal.open { display:flex; }
+@media (max-width:850px) {
+  .card { grid-template-columns:1fr; }
+  #stats { width:100%; margin-left:0; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>RaceSort Human Validation</h1>
+  <div class="sub">Offline review of OCR + Qwen results. Validation is stored in this browser and can be exported to CSV.</div>
+  <div class="toolbar">
+    <button data-filter="ALL" class="active">All</button>
+    <button data-filter="CONFIRMED">Confirmed</button>
+    <button data-filter="REVIEW">Review</button>
+    <select id="validationFilter">
+      <option value="ALL">All validation states</option>
+      <option value="UNVALIDATED">Unvalidated only</option>
+      <option value="CORRECT">Marked correct</option>
+      <option value="WRONG">Marked wrong</option>
+      <option value="UNKNOWN">Should be unknown</option>
+    </select>
+    <button id="exportBtn">Export validation CSV</button>
+    <button id="clearBtn">Clear saved validation</button>
+    <span id="stats"></span>
+  </div>
+</header>
+
+<main id="cards"></main>
+<footer>
+  Image paths are relative to the RaceSort project folder. Place this HTML file in the project root beside <code>test-output/</code>.
+</footer>
+
+<div id="modal" title="Click to close"><img id="modalImg" alt=""></div>
+
+<script>
+const RESULTS = [{"crop": "test-output/GGBM0001/motorcycle-01.jpg", "ocr_candidates": "49", "ocr_seconds": 0.28079779201652855, "qwen_called": true, "qwen_number": "49", "qwen_seconds": 8.845410082954913, "final_number": "49", "decision": "CONFIRMED", "qwen_raw": "49", "row_id": 1}, {"crop": "test-output/GGBM0002/motorcycle-01.jpg", "ocr_candidates": "869", "ocr_seconds": 0.24962979194242507, "qwen_called": true, "qwen_number": "869", "qwen_seconds": 3.344977916101925, "final_number": "869", "decision": "CONFIRMED", "qwen_raw": "869", "row_id": 2}, {"crop": "test-output/GGBM0002/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.16411354101728648, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 3}, {"crop": "test-output/GGBM0003/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.18001470807939768, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 4}, {"crop": "test-output/GGBM0003/motorcycle-02.jpg", "ocr_candidates": "869 | 0", "ocr_seconds": 0.2832829999970272, "qwen_called": true, "qwen_number": "869", "qwen_seconds": 6.605003666016273, "final_number": "869", "decision": "CONFIRMED", "qwen_raw": "869", "row_id": 5}, {"crop": "test-output/GGBM0004/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.5170640830183402, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 6}, {"crop": "test-output/GGBM0005/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.10202174994628876, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 7}, {"crop": "test-output/GGBM0005/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.3540880000218749, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 8}, {"crop": "test-output/GGBM0006/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.11850437498651445, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 9}, {"crop": "test-output/GGBM0006/motorcycle-02.jpg", "ocr_candidates": "52", "ocr_seconds": 0.28901658300310373, "qwen_called": true, "qwen_number": "52", "qwen_seconds": 5.494396292022429, "final_number": "52", "decision": "CONFIRMED", "qwen_raw": "52", "row_id": 10}, {"crop": "test-output/GGBM0006/motorcycle-03.jpg", "ocr_candidates": "", "ocr_seconds": 0.15605804196093231, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 11}, {"crop": "test-output/GGBM0007/motorcycle-01.jpg", "ocr_candidates": "C42A | 54", "ocr_seconds": 0.3055914589203894, "qwen_called": true, "qwen_number": "54", "qwen_seconds": 6.272819583071396, "final_number": "54", "decision": "CONFIRMED", "qwen_raw": "54", "row_id": 12}, {"crop": "test-output/GGBM0007/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.16292712499853224, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 13}, {"crop": "test-output/GGBM0008/motorcycle-01.jpg", "ocr_candidates": "0", "ocr_seconds": 0.3410703749395907, "qwen_called": true, "qwen_number": "0", "qwen_seconds": 6.552316582994536, "final_number": "0", "decision": "CONFIRMED", "qwen_raw": "0", "row_id": 14}, {"crop": "test-output/GGBM0009/motorcycle-01.jpg", "ocr_candidates": "999", "ocr_seconds": 0.4619224170455709, "qwen_called": true, "qwen_number": "999", "qwen_seconds": 7.711913249921054, "final_number": "999", "decision": "CONFIRMED", "qwen_raw": "999", "row_id": 15}, {"crop": "test-output/GGBM0009/motorcycle-02.jpg", "ocr_candidates": "124", "ocr_seconds": 0.30325250001624227, "qwen_called": true, "qwen_number": "", "qwen_seconds": 3.7119102909928188, "final_number": "", "decision": "REVIEW", "qwen_raw": "UNKNOWN", "row_id": 16}, {"crop": "test-output/GGBM0010/motorcycle-01.jpg", "ocr_candidates": "721", "ocr_seconds": 0.30396679090335965, "qwen_called": true, "qwen_number": "721", "qwen_seconds": 6.580674500088207, "final_number": "721", "decision": "CONFIRMED", "qwen_raw": "721", "row_id": 17}, {"crop": "test-output/GGBM0012/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.41047970799263567, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 18}, {"crop": "test-output/GGBM0012/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.10640649998094887, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 19}, {"crop": "test-output/GGBM0013/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.23157941596582532, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 20}, {"crop": "test-output/GGBM0013/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.10500170791056007, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 21}, {"crop": "test-output/GGBM0014/motorcycle-01.jpg", "ocr_candidates": "866", "ocr_seconds": 0.3215084159746766, "qwen_called": true, "qwen_number": "866", "qwen_seconds": 7.27148333308287, "final_number": "866", "decision": "CONFIRMED", "qwen_raw": "866", "row_id": 22}, {"crop": "test-output/GGBM0015/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.3723406669450924, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 23}, {"crop": "test-output/GGBM0016/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.2412140000378713, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 24}, {"crop": "test-output/GGBM0017/motorcycle-01.jpg", "ocr_candidates": "C42A", "ocr_seconds": 0.308081959025003, "qwen_called": true, "qwen_number": "", "qwen_seconds": 5.708807333023287, "final_number": "", "decision": "REVIEW", "qwen_raw": "UNKNOWN", "row_id": 25}, {"crop": "test-output/GGBM0018/motorcycle-01.jpg", "ocr_candidates": "122", "ocr_seconds": 0.3539698750246316, "qwen_called": true, "qwen_number": "", "qwen_seconds": 5.746491875033826, "final_number": "", "decision": "REVIEW", "qwen_raw": "UNKNOWN", "row_id": 26}, {"crop": "test-output/GGBM0018/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.2666008749511093, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 27}, {"crop": "test-output/GGBM0018/motorcycle-03.jpg", "ocr_candidates": "", "ocr_seconds": 0.1526312920032069, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 28}, {"crop": "test-output/GGBM0018/motorcycle-04.jpg", "ocr_candidates": "", "ocr_seconds": 0.11089379095938057, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 29}, {"crop": "test-output/GGBM0019/motorcycle-01.jpg", "ocr_candidates": "999", "ocr_seconds": 0.30963354208506644, "qwen_called": true, "qwen_number": "999", "qwen_seconds": 6.947036667028442, "final_number": "999", "decision": "CONFIRMED", "qwen_raw": "999", "row_id": 30}, {"crop": "test-output/GGBM0019/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.16400516696739942, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 31}, {"crop": "test-output/GGBM0020/motorcycle-01.jpg", "ocr_candidates": "", "ocr_seconds": 0.12585891596972942, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 32}, {"crop": "test-output/GGBM0020/motorcycle-02.jpg", "ocr_candidates": "", "ocr_seconds": 0.3265421249670908, "qwen_called": false, "qwen_number": "", "qwen_seconds": 0.0, "final_number": "", "decision": "REVIEW", "qwen_raw": "", "row_id": 33}];
+const STORAGE_KEY = "racesort-human-validation-v1";
+
+let decisionFilter = "ALL";
+let validationFilter = "ALL";
+let validations = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+function keyFor(row) { return row.crop; }
+function getValidation(row) {
+  return validations[keyFor(row)] || { status:"UNVALIDATED", ground_truth:"", note:"" };
+}
+function saveValidation(row, patch) {
+  const key = keyFor(row);
+  validations[key] = {...getValidation(row), ...patch};
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(validations));
+  render();
+}
+
+function visibleRows() {
+  return RESULTS.filter(row => {
+    const v = getValidation(row);
+    const dOk = decisionFilter === "ALL" || row.decision === decisionFilter;
+    const vOk = validationFilter === "ALL" || v.status === validationFilter;
+    return dOk && vOk;
+  });
+}
+
+function render() {
+  const root = document.getElementById("cards");
+  const rows = visibleRows();
+  root.innerHTML = "";
+
+  for (const row of rows) {
+    const v = getValidation(row);
+    const card = document.createElement("section");
+    card.className = "card " + row.decision.toLowerCase();
+
+    const total = row.ocr_seconds + row.qwen_seconds;
+    card.innerHTML = `
+      <div class="photo-wrap">
+        <img src="${esc(row.crop)}" alt="${esc(row.crop)}"
+             onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=&quot;missing&quot;>Image not found.<br>Place this HTML file in the RaceSort project root so <code>${esc(row.crop)}</code> resolves correctly.</div>'">
+      </div>
+      <div class="meta">
+        <h2>${esc(row.crop)}</h2>
+        <span class="badge ${row.decision.toLowerCase()}">${esc(row.decision)}</span>
+        ${row.final_number ? `<span class="badge confirmed">Final #${esc(row.final_number)}</span>` : ""}
+        <div class="grid">
+          <div class="label">OCR candidates</div><div class="value">${esc(row.ocr_candidates || "—")}</div>
+          <div class="label">Qwen called</div><div class="value">${row.qwen_called ? "Yes" : "No"}</div>
+          <div class="label">Qwen result</div><div class="value">${esc(row.qwen_number || "UNKNOWN")}</div>
+          <div class="label">Final result</div><div class="value"><strong>${esc(row.final_number || "UNKNOWN")}</strong></div>
+          <div class="label">OCR time</div><div class="value">${row.ocr_seconds.toFixed(3)} s</div>
+          <div class="label">Qwen time</div><div class="value">${row.qwen_seconds.toFixed(2)} s</div>
+          <div class="label">Total</div><div class="value">${total.toFixed(2)} s</div>
+        </div>
+        <div class="validation">
+          <div class="validation-row">
+            <button class="good ${v.status==='CORRECT'?'active':''}" data-act="CORRECT">Correct</button>
+            <button class="bad ${v.status==='WRONG'?'active':''}" data-act="WRONG">Wrong</button>
+            <button class="unknown ${v.status==='UNKNOWN'?'active':''}" data-act="UNKNOWN">Should be UNKNOWN</button>
+            <input class="gt" placeholder="Ground truth e.g. 007" value="${esc(v.ground_truth)}">
+          </div>
+          <input class="note" placeholder="Optional note" value="${esc(v.note)}">
+          <div class="status-text">Human validation: <strong>${esc(v.status)}</strong></div>
+        </div>
+      </div>`;
+
+    const img = card.querySelector("img");
+    if (img) {
+      img.addEventListener("click", () => {
+        document.getElementById("modalImg").src = row.crop;
+        document.getElementById("modal").classList.add("open");
+      });
+    }
+
+    card.querySelectorAll("[data-act]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        saveValidation(row, {status: btn.dataset.act});
+      });
+    });
+
+    const gt = card.querySelector(".gt");
+    const note = card.querySelector(".note");
+    gt.addEventListener("change", () => saveValidation(row, {ground_truth: gt.value.trim().toUpperCase()}));
+    note.addEventListener("change", () => saveValidation(row, {note: note.value.trim()}));
+
+    root.appendChild(card);
+  }
+
+  const validated = RESULTS.filter(r => getValidation(r).status !== "UNVALIDATED").length;
+  document.getElementById("stats").textContent =
+    `${rows.length} shown · ${validated}/${RESULTS.length} validated`;
+}
+
+document.querySelectorAll("[data-filter]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    decisionFilter = btn.dataset.filter;
+    document.querySelectorAll("[data-filter]").forEach(b => b.classList.toggle("active", b === btn));
+    render();
+  });
+});
+
+document.getElementById("validationFilter").addEventListener("change", e => {
+  validationFilter = e.target.value;
+  render();
+});
+
+document.getElementById("modal").addEventListener("click", () => {
+  document.getElementById("modal").classList.remove("open");
+});
+
+document.getElementById("clearBtn").addEventListener("click", () => {
+  if (confirm("Clear all saved human validation for this page?")) {
+    validations = {};
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  }
+});
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const headers = [
+    "crop","ocr_candidates","qwen_called","qwen_number","final_number","decision",
+    "human_status","ground_truth","note","ocr_seconds","qwen_seconds"
+  ];
+  const csvRows = [headers];
+
+  for (const row of RESULTS) {
+    const v = getValidation(row);
+    csvRows.push([
+      row.crop, row.ocr_candidates, row.qwen_called, row.qwen_number,
+      row.final_number, row.decision, v.status, v.ground_truth, v.note,
+      row.ocr_seconds, row.qwen_seconds
+    ]);
+  }
+
+  const quote = value => `"${String(value ?? "").replace(/"/g,'""')}"`;
+  const text = csvRows.map(r => r.map(quote).join(",")).join("\n");
+  const blob = new Blob([text], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "racesort-human-validation.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+render();
+</script>
+</body>
+</html>
