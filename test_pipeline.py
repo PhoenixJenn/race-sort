@@ -6,6 +6,7 @@ import time
 
 import ollama
 import torch
+from rapidocr import RapidOCR
 from PIL import (
     Image,
     ImageDraw,
@@ -112,6 +113,29 @@ Rules:
 - Do not infer from colors, vehicle type, rider,
   sponsors, graphics, or context.
 - Do not guess.
+"""
+
+
+DIRECT_NUMBER_PROMPT = """
+Inspect this race vehicle specifically for its race number.
+
+Return ONLY one of these:
+
+1. The exact race number as visibly written.
+2. UNKNOWN
+
+Rules:
+
+- Read the race number character by character.
+- Preserve leading zeros exactly.
+- Race numbers are identifiers, not quantities.
+- Race numbers may contain digits and letters.
+- Preserve the visible character order exactly.
+- If any character is ambiguous, return UNKNOWN.
+- If the number area is blank, return UNKNOWN.
+- If no number is clearly visible, return UNKNOWN.
+- Ignore sponsor names, logos, decals, and unrelated text.
+- Never guess.
 """
 
 
@@ -458,6 +482,106 @@ def read_fast_number(
     )
 
 
+def extract_ocr_candidates(result):
+    """Extract unique plausible race-number candidates."""
+
+    candidates = []
+
+    if result is None:
+        return candidates
+
+    texts = getattr(
+        result,
+        "txts",
+        None,
+    )
+
+    if not texts:
+        return candidates
+
+    for text in texts:
+
+        compact = (
+            str(text)
+            .strip()
+            .upper()
+            .replace(" ", "")
+        )
+
+        candidate = normalize_number(
+            compact
+        )
+
+        if candidate is None:
+            continue
+
+        if not any(
+            character.isdigit()
+            for character in candidate
+        ):
+            continue
+
+        candidates.append(candidate)
+
+    return list(
+        dict.fromkeys(candidates)
+    )
+
+
+def verify_ocr_candidates(
+    crop_path,
+    candidates,
+):
+    """Ask Qwen to verify exactly one OCR candidate."""
+
+    candidate_text = ", ".join(candidates)
+
+    prompt = f"""
+Inspect this race vehicle specifically for its race number.
+
+OCR found these possible identifiers:
+
+{candidate_text}
+
+Return ONLY one of these:
+
+1. One exact identifier from the OCR candidate list above.
+2. UNKNOWN
+
+Rules:
+
+- Only choose a candidate if that exact identifier is clearly visible
+  as the vehicle's race number.
+- Preserve leading zeros exactly.
+- Do not invent a new number.
+- Do not return anything not present in the candidate list.
+- Ignore sponsor names, logos, decals, and unrelated text.
+- If more than one candidate seems plausible, return UNKNOWN.
+- If the race number is blurry or ambiguous, return UNKNOWN.
+- If the number area is blank, return UNKNOWN.
+- Never guess.
+"""
+
+    number, elapsed, raw = read_fast_number(
+        crop_path,
+        prompt,
+    )
+
+    if number not in candidates:
+        number = None
+
+    return number, elapsed, raw
+
+
+def direct_qwen_read(crop_path):
+    """Return a direct Qwen read as candidate evidence."""
+
+    return read_fast_number(
+        crop_path,
+        DIRECT_NUMBER_PROMPT,
+    )
+
+
 def ask_qwen_for_profile(
     crop_path,
 ):
@@ -631,6 +755,18 @@ OUTPUT_DIR.mkdir(
 )
 
 print(
+    "Loading RapidOCR..."
+)
+
+ocr_engine = RapidOCR()
+
+print(
+    "RapidOCR loaded."
+)
+
+print()
+
+print(
     "Loading DETR model..."
 )
 
@@ -714,6 +850,10 @@ total_fast_b_time = 0.0
 
 total_profile_time = 0.0
 
+total_ocr_time = 0.0
+total_qwen_verify_time = 0.0
+total_qwen_direct_time = 0.0
+
 total_vehicle_time = 0.0
 
 total_vehicles_processed = 0
@@ -723,6 +863,12 @@ rich_profiles_generated = 0
 fast_confirmed_count = 0
 
 review_count_total = 0
+
+ocr_candidate_count = 0
+ocr_empty_count = 0
+qwen_verify_calls = 0
+qwen_direct_calls = 0
+qwen_candidate_count = 0
 
 filtered_non_primary_count = 0
 filtered_too_blurry_count = 0
@@ -1098,6 +1244,29 @@ for photo_number, image_path in enumerate(
                 f"Quality decision: {decision}"
             )
 
+            profile_path = (
+                photo_output_dir
+                / f"{RACE_TYPE}-{index:02d}.json"
+            )
+
+            with open(
+                profile_path,
+                "w",
+                encoding="utf-8",
+            ) as json_file:
+
+                json.dump(
+                    {
+                        "_racesort": {
+                            "profile_type": "filtered",
+                            "rich_profile_generated": False,
+                            "filter_decision": decision,
+                        }
+                    },
+                    json_file,
+                    indent=2,
+                )
+
             vehicle_results.append(
                 {
                     "vehicle": index,
@@ -1107,8 +1276,16 @@ for photo_number, image_path in enumerate(
                     "final_number": None,
                     "decision": decision,
                     "crop": crop_path.name,
-                    "profile": None,
-                    "profile_type": "not_generated",
+                    "profile": profile_path.name,
+                    "profile_type": "filtered",
+                    "routing": {
+                        "route": decision,
+                        "ocr_candidates": [],
+                        "qwen_verify_number": None,
+                        "qwen_direct_number": None,
+                        "qwen_verify_raw": None,
+                        "qwen_direct_raw": None,
+                    },
                     "quality": {
                         "pixel_area": vehicle["pixel_area"],
                         "relative_area": vehicle["relative_area"],
@@ -1142,179 +1319,155 @@ for photo_number, image_path in enumerate(
 
 
         # ====================================================
-        # FAST PASS B FIRST
+        # RAPIDOCR ROUTING
         # ====================================================
 
-        (
-            number_b,
-            time_b,
-            raw_b,
-        ) = read_fast_number(
-            crop_path,
-            NUMBER_PROMPT_B,
+        ocr_start = time.perf_counter()
+
+        ocr_result = ocr_engine(
+            str(crop_path)
         )
 
-        total_fast_b_time += (
-            time_b
+        ocr_elapsed = (
+            time.perf_counter()
+            - ocr_start
         )
 
+        total_ocr_time += ocr_elapsed
 
-        # ====================================================
-        # FAST PASS A SECOND
-        # ====================================================
-
-        (
-            number_a,
-            time_a,
-            raw_a,
-        ) = read_fast_number(
-            crop_path,
-            NUMBER_PROMPT_A,
+        ocr_candidates = extract_ocr_candidates(
+            ocr_result
         )
 
-        total_fast_a_time += (
-            time_a
-        )
+        qwen_verify_number = None
+        qwen_direct_number = None
+        qwen_verify_raw = None
+        qwen_direct_raw = None
+        verify_elapsed = 0.0
+        direct_elapsed = 0.0
 
 
-        print(
-            f"Fast B: "
-            f"{number_b or 'UNKNOWN'} "
-            f"({time_b:.2f}s)"
-        )
+        if ocr_candidates:
 
-        print(
-            f"Fast A: "
-            f"{number_a or 'UNKNOWN'} "
-            f"({time_a:.2f}s)"
-        )
+            ocr_candidate_count += 1
+            qwen_verify_calls += 1
 
-
-        # ====================================================
-        # FAST CONFIRMATION DECISION
-        # ====================================================
-
-        if (
-            number_a is not None
-            and number_b is not None
-            and number_a == number_b
-        ):
-
-            final_number = (
-                number_a
+            (
+                qwen_verify_number,
+                verify_elapsed,
+                qwen_verify_raw,
+            ) = verify_ocr_candidates(
+                crop_path,
+                ocr_candidates,
             )
 
-            decision = (
-                "CONFIRMED"
-            )
-
-            fast_confirmed_count += 1
+            total_qwen_verify_time += verify_elapsed
 
 
-            print(
-                f"Fast decision: "
-                f"CONFIRMED "
-                f"#{final_number}"
-            )
+            if qwen_verify_number is not None:
 
-
-            # ------------------------------------------------
-            # Rich profile policy
-            #
-            # Generate full metadata only for the first
-            # confirmed sighting of this number in this batch.
-            # ------------------------------------------------
-
-            if (
-                final_number
-                not in rich_profiled_numbers
-            ):
-
-                print(
-                    "Generating rich profile "
-                    "for first confirmed sighting..."
-                )
-
-                (
-                    profile,
-                    raw_profile,
-                    profile_elapsed,
-                ) = ask_qwen_for_profile(
-                    crop_path
-                )
-
-                total_profile_time += (
-                    profile_elapsed
-                )
-
-                rich_profiles_generated += 1
-
-                rich_profiled_numbers.add(
-                    final_number
-                )
-
-                profile_type = (
-                    "rich_confirmed"
-                )
+                final_number = qwen_verify_number
+                decision = "CONFIRMED"
+                route = "OCR_QWEN_AGREE"
+                fast_confirmed_count += 1
 
 
             else:
 
-                profile = (
-                    create_minimal_confirmed_profile(
-                        final_number
-                    )
+                qwen_direct_calls += 1
+
+                (
+                    qwen_direct_number,
+                    direct_elapsed,
+                    qwen_direct_raw,
+                ) = direct_qwen_read(
+                    crop_path
                 )
 
-                raw_profile = None
+                total_qwen_direct_time += direct_elapsed
 
-                profile_elapsed = 0.0
+                if qwen_direct_number is not None:
+                    final_number = qwen_direct_number
+                    decision = "QWEN_CANDIDATE"
+                    route = "OCR_REJECTED_DIRECT_CANDIDATE"
+                    qwen_candidate_count += 1
 
-                profile_type = (
-                    "minimal_confirmed"
-                )
+                else:
+                    final_number = None
+                    decision = "REVIEW"
+                    route = "OCR_REJECTED_DIRECT_UNKNOWN"
+                    review_count_total += 1
 
-
-        # ====================================================
-        # REVIEW CASE
-        # ====================================================
 
         else:
 
-            final_number = None
-
-            decision = "REVIEW"
-
-            review_count_total += 1
-
-
-            print(
-                "Fast decision: REVIEW"
-            )
-
-            print(
-                "Generating rich profile "
-                "for second-pass matching..."
-            )
-
+            ocr_empty_count += 1
+            qwen_direct_calls += 1
 
             (
-                profile,
-                raw_profile,
-                profile_elapsed,
-            ) = ask_qwen_for_profile(
+                qwen_direct_number,
+                direct_elapsed,
+                qwen_direct_raw,
+            ) = direct_qwen_read(
                 crop_path
             )
 
-            total_profile_time += (
-                profile_elapsed
-            )
+            total_qwen_direct_time += direct_elapsed
 
-            rich_profiles_generated += 1
+            if qwen_direct_number is not None:
+                final_number = qwen_direct_number
+                decision = "QWEN_CANDIDATE"
+                route = "OCR_EMPTY_DIRECT_CANDIDATE"
+                qwen_candidate_count += 1
 
-            profile_type = (
-                "rich_review"
+            else:
+                final_number = None
+                decision = "REVIEW"
+                route = "OCR_EMPTY_DIRECT_UNKNOWN"
+                review_count_total += 1
+
+
+        print(
+            f"OCR candidates: {ocr_candidates} "
+            f"({ocr_elapsed:.2f}s)"
+        )
+
+        print(
+            f"Route: {route}"
+        )
+
+        print(
+            f"Decision: {decision}"
+        )
+
+
+        # Keep the existing profile-file contract for older
+        # registry utilities without making rich Qwen calls.
+        if decision == "CONFIRMED":
+            profile = create_minimal_confirmed_profile(
+                final_number
             )
+            profile_type = "minimal_confirmed"
+
+        else:
+            profile = {
+                "_racesort": {
+                    "profile_type": "routing_evidence",
+                    "rich_profile_generated": False,
+                }
+            }
+            profile_type = "routing_evidence"
+
+        raw_profile = None
+        profile_elapsed = 0.0
+
+        # Compatibility aliases for existing output fields.
+        number_a = qwen_direct_number
+        number_b = qwen_verify_number
+        raw_a = qwen_direct_raw
+        raw_b = qwen_verify_raw
+        time_a = direct_elapsed
+        time_b = verify_elapsed
 
 
         # ====================================================
@@ -1409,6 +1562,15 @@ for photo_number, image_path in enumerate(
             "profile_type":
                 profile_type,
 
+            "routing": {
+                "route": route,
+                "ocr_candidates": ocr_candidates,
+                "qwen_verify_number": qwen_verify_number,
+                "qwen_direct_number": qwen_direct_number,
+                "qwen_verify_raw": qwen_verify_raw,
+                "qwen_direct_raw": qwen_direct_raw,
+            },
+
             "quality": {
                 "pixel_area":
                     vehicle["pixel_area"],
@@ -1424,6 +1586,15 @@ for photo_number, image_path in enumerate(
             },
 
             "timing": {
+                "ocr_seconds":
+                    ocr_elapsed,
+
+                "qwen_verify_seconds":
+                    verify_elapsed,
+
+                "qwen_direct_seconds":
+                    direct_elapsed,
+
                 "fast_pass_b_seconds":
                     time_b,
 
@@ -1441,7 +1612,10 @@ for photo_number, image_path in enumerate(
         )
 
 
-        if final_number is not None:
+        if (
+            decision == "CONFIRMED"
+            and final_number is not None
+        ):
 
             photo_numbers.append(
                 final_number
@@ -1573,13 +1747,23 @@ for photo_number, image_path in enumerate(
             )
 
             file.write(
-                f"  Fast Pass A: "
-                f"{result['profile_number'] or 'UNKNOWN'}\n"
+                f"  Route: "
+                f"{result['routing']['route']}\n"
             )
 
             file.write(
-                f"  Fast Pass B: "
-                f"{result['verification_number'] or 'UNKNOWN'}\n"
+                f"  OCR candidates: "
+                f"{result['routing']['ocr_candidates']}\n"
+            )
+
+            file.write(
+                f"  Qwen verify: "
+                f"{result['routing']['qwen_verify_number'] or 'UNKNOWN'}\n"
+            )
+
+            file.write(
+                f"  Qwen direct: "
+                f"{result['routing']['qwen_direct_number'] or 'UNKNOWN'}\n"
             )
 
             file.write(
@@ -1608,13 +1792,18 @@ for photo_number, image_path in enumerate(
             )
 
             file.write(
-                f"  Fast B time: "
-                f"{result['timing']['fast_pass_b_seconds']:.2f}s\n"
+                f"  OCR time: "
+                f"{result['timing'].get('ocr_seconds', 0.0):.2f}s\n"
             )
 
             file.write(
-                f"  Fast A time: "
-                f"{result['timing']['fast_pass_a_seconds']:.2f}s\n"
+                f"  Qwen verify time: "
+                f"{result['timing'].get('qwen_verify_seconds', 0.0):.2f}s\n"
+            )
+
+            file.write(
+                f"  Qwen direct time: "
+                f"{result['timing'].get('qwen_direct_seconds', 0.0):.2f}s\n"
             )
 
             file.write(
@@ -1659,7 +1848,10 @@ for photo_number, image_path in enumerate(
         for result
         in vehicle_results
         if result["decision"]
-        == "REVIEW"
+        in {
+            "QWEN_CANDIDATE",
+            "REVIEW",
+        }
     )
 
 
@@ -1768,8 +1960,13 @@ print(
 print()
 
 print(
-    f"Fast-confirmed vehicles: "
+    f"CONFIRMED: "
     f"{fast_confirmed_count}"
+)
+
+print(
+    f"QWEN_CANDIDATE: "
+    f"{qwen_candidate_count}"
 )
 
 print(
@@ -1788,8 +1985,30 @@ print(
 )
 
 print(
-    f"Rich profiles generated: "
-    f"{rich_profiles_generated}"
+    f"Total human-review workload: "
+    f"{qwen_candidate_count + review_count_total}"
+)
+
+print()
+
+print(
+    f"OCR candidate cases: "
+    f"{ocr_candidate_count}"
+)
+
+print(
+    f"OCR empty cases: "
+    f"{ocr_empty_count}"
+)
+
+print(
+    f"Qwen VERIFY calls: "
+    f"{qwen_verify_calls}"
+)
+
+print(
+    f"Qwen DIRECT calls: "
+    f"{qwen_direct_calls}"
 )
 
 print()
@@ -1807,39 +2026,24 @@ print(
 )
 
 print(
-    f"Fast Pass B total: "
-    f"{total_fast_b_time:.2f}s"
+    f"OCR total: "
+    f"{total_ocr_time:.2f}s"
 )
 
 print(
-    f"Fast Pass A total: "
-    f"{total_fast_a_time:.2f}s"
+    f"Qwen VERIFY total: "
+    f"{total_qwen_verify_time:.2f}s"
 )
 
 print(
-    f"Rich profile total: "
-    f"{total_profile_time:.2f}s"
+    f"Qwen DIRECT total: "
+    f"{total_qwen_direct_time:.2f}s"
 )
 
 
 if total_vehicles_processed > 0:
 
     print()
-
-    print(
-        f"Average Fast Pass B: "
-        f"{total_fast_b_time / total_vehicles_processed:.2f}s"
-    )
-
-    print(
-        f"Average Fast Pass A: "
-        f"{total_fast_a_time / total_vehicles_processed:.2f}s"
-    )
-
-    print(
-        f"Average fast two-pass: "
-        f"{(total_fast_a_time + total_fast_b_time) / total_vehicles_processed:.2f}s"
-    )
 
     print(
         f"Average vehicle total: "
