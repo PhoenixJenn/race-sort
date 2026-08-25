@@ -1,11 +1,16 @@
 from pathlib import Path
 import csv
 import json
+import os
 import re
 import time
 
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 import ollama
 import torch
+import torch.nn.functional as F
 from rapidocr import RapidOCR
 from PIL import (
     Image,
@@ -14,6 +19,8 @@ from PIL import (
     ImageStat,
 )
 from transformers import (
+    AutoImageProcessor,
+    AutoModel,
     DetrImageProcessor,
     DetrForObjectDetection,
 )
@@ -28,6 +35,7 @@ OUTPUT_DIR = Path("test-output")
 
 DETECTOR_MODEL = "facebook/detr-resnet-50"
 VISION_MODEL = "qwen3-vl:4b-instruct"
+DINO_MODEL = "facebook/dinov2-small"
 
 DETECTION_THRESHOLD = 0.70
 MAX_CROP_SIZE = 1500
@@ -36,6 +44,7 @@ MAX_CROP_SIZE = 1500
 MAX_FILTER_AREA = 0.20
 MAX_FILTER_RELATIVE_SHARPNESS = 0.45
 MAX_BLUR_SHARPNESS = 150.0
+DINO_CORROBORATION_THRESHOLD = 0.90
 
 SUPPORTED_EXTENSIONS = {
     ".jpg",
@@ -580,6 +589,60 @@ def direct_qwen_read(crop_path):
         crop_path,
         DIRECT_NUMBER_PROMPT,
     )
+
+
+def resolve_dino_device():
+    """Choose CUDA, Apple MPS, or CPU without platform forks."""
+
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+
+    return torch.device("cpu")
+
+
+def create_dino_embedding(
+    image_path,
+    processor,
+    model,
+    device,
+    cache,
+):
+    """Create and cache one normalized DINO embedding."""
+
+    image_path = Path(image_path)
+    cache_key = str(image_path.resolve())
+
+    if cache_key in cache:
+        return cache[cache_key]
+
+    with Image.open(image_path) as image:
+        image = image.convert("RGB")
+
+        inputs = processor(
+            images=image,
+            return_tensors="pt",
+        )
+
+    inputs = {
+        key: value.to(device)
+        for key, value in inputs.items()
+    }
+
+    with torch.no_grad():
+        outputs = model(**inputs)
+
+    embedding = F.normalize(
+        outputs.last_hidden_state[:, 0, :],
+        p=2,
+        dim=1,
+    ).cpu()
+
+    cache[cache_key] = embedding
+
+    return embedding
 
 
 def ask_qwen_for_profile(
@@ -1899,6 +1962,334 @@ for photo_number, image_path in enumerate(
 
 
 # ============================================================
+# RESOLVE QWEN CANDIDATES WITH INDEPENDENT DINO EVIDENCE
+# ============================================================
+
+dino_start = time.perf_counter()
+
+confirmed_references = {}
+candidate_records = []
+photo_result_records = []
+
+for result_path in sorted(
+    OUTPUT_DIR.glob("*/photo-results.json")
+):
+
+    with open(
+        result_path,
+        "r",
+        encoding="utf-8",
+    ) as json_file:
+        photo_result = json.load(json_file)
+
+    photo_result_records.append(
+        (result_path, photo_result)
+    )
+
+    for vehicle_result in photo_result["vehicles"]:
+
+        crop_path = (
+            result_path.parent
+            / vehicle_result["crop"]
+        )
+
+        race_number = vehicle_result.get(
+            "final_number"
+        )
+
+        if (
+            vehicle_result["decision"] == "CONFIRMED"
+            and race_number is not None
+        ):
+
+            confirmed_references.setdefault(
+                race_number,
+                [],
+            ).append(crop_path)
+
+        elif (
+            vehicle_result["decision"]
+            == "QWEN_CANDIDATE"
+        ):
+
+            candidate_records.append(
+                (
+                    result_path,
+                    photo_result,
+                    vehicle_result,
+                    crop_path,
+                )
+            )
+
+
+comparable_candidates = [
+    record
+    for record in candidate_records
+    if confirmed_references.get(
+        record[2].get("final_number")
+    )
+]
+
+dino_processor = None
+dino_model = None
+dino_device = None
+dino_embedding_cache = {}
+
+if comparable_candidates:
+
+    dino_device = resolve_dino_device()
+
+    print(
+        f"Loading DINOv2 on {dino_device}..."
+    )
+
+    dino_processor = (
+        AutoImageProcessor.from_pretrained(
+            DINO_MODEL,
+            local_files_only=True,
+        )
+    )
+
+    dino_model = AutoModel.from_pretrained(
+        DINO_MODEL,
+        local_files_only=True,
+    )
+
+    dino_model.to(dino_device)
+    dino_model.eval()
+
+
+dino_resolution_rows = []
+
+for (
+    result_path,
+    photo_result,
+    vehicle_result,
+    candidate_crop_path,
+) in candidate_records:
+
+    candidate_number = vehicle_result[
+        "final_number"
+    ]
+
+    reference_paths = []
+
+    for reference_path in confirmed_references.get(
+        candidate_number,
+        [],
+    ):
+
+        # A crop can never corroborate itself.
+        if (
+            reference_path.resolve()
+            == candidate_crop_path.resolve()
+        ):
+            continue
+
+        reference_paths.append(reference_path)
+
+
+    similarities = []
+
+    if reference_paths:
+
+        candidate_embedding = create_dino_embedding(
+            candidate_crop_path,
+            dino_processor,
+            dino_model,
+            dino_device,
+            dino_embedding_cache,
+        )
+
+        for reference_path in reference_paths:
+
+            reference_embedding = create_dino_embedding(
+                reference_path,
+                dino_processor,
+                dino_model,
+                dino_device,
+                dino_embedding_cache,
+            )
+
+            score = F.cosine_similarity(
+                candidate_embedding,
+                reference_embedding,
+            ).item()
+
+            similarities.append(
+                (score, reference_path)
+            )
+
+        similarities.sort(
+            key=lambda item: item[0],
+            reverse=True,
+        )
+
+
+    best_similarity = (
+        similarities[0][0]
+        if similarities
+        else None
+    )
+
+    best_reference = (
+        similarities[0][1]
+        if similarities
+        else None
+    )
+
+
+    if (
+        best_similarity is not None
+        and best_similarity
+        >= DINO_CORROBORATION_THRESHOLD
+    ):
+        disposition = "CORROBORATED"
+        reasons = [
+            "KNOWN_CONFIRMED_NUMBER",
+            "STRONG_INDEPENDENT_DINO_SUPPORT",
+        ]
+
+    elif reference_paths:
+        disposition = "KNOWN_NUMBER_REVIEW"
+        reasons = [
+            "KNOWN_CONFIRMED_NUMBER",
+            "DINO_BELOW_PROMOTION_THRESHOLD",
+        ]
+
+    else:
+        disposition = "UNSUPPORTED"
+        reasons = [
+            "NO_INDEPENDENT_CONFIRMED_REFERENCE",
+        ]
+
+
+    vehicle_result["decision"] = disposition
+    vehicle_result["candidate_resolution"] = {
+        "candidate_number": candidate_number,
+        "independent_reference_count": len(
+            reference_paths
+        ),
+        "best_dino_similarity": best_similarity,
+        "best_reference": (
+            str(best_reference)
+            if best_reference is not None
+            else None
+        ),
+        "threshold": DINO_CORROBORATION_THRESHOLD,
+        "disposition": disposition,
+        "reasons": reasons,
+    }
+
+
+    if disposition == "CORROBORATED":
+
+        confirmed_numbers = photo_result[
+            "confirmed_photo_numbers"
+        ]
+
+        if candidate_number not in confirmed_numbers:
+            confirmed_numbers.append(candidate_number)
+
+
+    dino_resolution_rows.append(
+        {
+            "crop": str(candidate_crop_path),
+            "candidate_number": candidate_number,
+            "independent_reference_count": len(
+                reference_paths
+            ),
+            "best_dino_similarity": best_similarity,
+            "best_reference": (
+                str(best_reference)
+                if best_reference is not None
+                else ""
+            ),
+            "disposition": disposition,
+            "reasons": " | ".join(reasons),
+        }
+    )
+
+
+for result_path, photo_result in photo_result_records:
+
+    with open(
+        result_path,
+        "w",
+        encoding="utf-8",
+    ) as json_file:
+
+        json.dump(
+            photo_result,
+            json_file,
+            indent=2,
+        )
+
+
+dino_results_path = (
+    OUTPUT_DIR
+    / "dino-candidate-resolution-results.csv"
+)
+
+with open(
+    dino_results_path,
+    "w",
+    newline="",
+    encoding="utf-8",
+) as csv_file:
+
+    writer = csv.DictWriter(
+        csv_file,
+        fieldnames=[
+            "crop",
+            "candidate_number",
+            "independent_reference_count",
+            "best_dino_similarity",
+            "best_reference",
+            "disposition",
+            "reasons",
+        ],
+    )
+
+    writer.writeheader()
+    writer.writerows(dino_resolution_rows)
+
+
+total_dino_time = (
+    time.perf_counter()
+    - dino_start
+)
+
+
+for batch_row in batch_rows:
+
+    matching_photo = next(
+        photo_result
+        for _, photo_result
+        in photo_result_records
+        if photo_result["photo"]
+        == batch_row["photo"]
+    )
+
+    batch_row["confirmed_numbers"] = ", ".join(
+        matching_photo["confirmed_photo_numbers"]
+    )
+
+    batch_row["vehicles_for_review"] = sum(
+        1
+        for vehicle_result
+        in matching_photo["vehicles"]
+        if vehicle_result["decision"]
+        in {
+            "KNOWN_NUMBER_REVIEW",
+            "CONFLICTING",
+            "UNSUPPORTED",
+            "REVIEW",
+        }
+    )
+
+
+# ============================================================
 # SAVE BATCH CSV
 # ============================================================
 
@@ -1942,6 +2333,37 @@ batch_elapsed = (
     - batch_start_time
 )
 
+corroborated_count = sum(
+    1
+    for row in dino_resolution_rows
+    if row["disposition"] == "CORROBORATED"
+)
+
+known_number_review_count = sum(
+    1
+    for row in dino_resolution_rows
+    if row["disposition"] == "KNOWN_NUMBER_REVIEW"
+)
+
+conflicting_count = sum(
+    1
+    for row in dino_resolution_rows
+    if row["disposition"] == "CONFLICTING"
+)
+
+unsupported_count = sum(
+    1
+    for row in dino_resolution_rows
+    if row["disposition"] == "UNSUPPORTED"
+)
+
+total_human_review_workload = (
+    review_count_total
+    + known_number_review_count
+    + conflicting_count
+    + unsupported_count
+)
+
 
 print("=" * 70)
 print("PHASE 3B BATCH COMPLETE")
@@ -1965,8 +2387,28 @@ print(
 )
 
 print(
-    f"QWEN_CANDIDATE: "
+    f"Qwen candidates routed: "
     f"{qwen_candidate_count}"
+)
+
+print(
+    f"CORROBORATED: "
+    f"{corroborated_count}"
+)
+
+print(
+    f"KNOWN_NUMBER_REVIEW: "
+    f"{known_number_review_count}"
+)
+
+print(
+    f"CONFLICTING: "
+    f"{conflicting_count}"
+)
+
+print(
+    f"UNSUPPORTED: "
+    f"{unsupported_count}"
 )
 
 print(
@@ -1986,7 +2428,7 @@ print(
 
 print(
     f"Total human-review workload: "
-    f"{qwen_candidate_count + review_count_total}"
+    f"{total_human_review_workload}"
 )
 
 print()
@@ -2040,6 +2482,11 @@ print(
     f"{total_qwen_direct_time:.2f}s"
 )
 
+print(
+    f"DINO total: "
+    f"{total_dino_time:.2f}s"
+)
+
 
 if total_vehicles_processed > 0:
 
@@ -2082,4 +2529,9 @@ print()
 print(
     f"Batch CSV: "
     f"{csv_path}"
+)
+
+print(
+    f"DINO resolution CSV: "
+    f"{dino_results_path}"
 )
