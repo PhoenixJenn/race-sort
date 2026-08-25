@@ -124,17 +124,21 @@ RapidOCR
    ┌────┴─────┐
 candidate    none
    ↓           ↓
-Qwen verify  Qwen direct read
+Qwen direct read
    ↓           ↓
-unanchored    candidate?
-direct read   /       \
-   ↓         yes       no
-all three     ↓         ↓
-agree?       QWEN_    REVIEW
- /    \      CANDIDATE
-yes    no       /
- ↓      ↓      /
-CONF. candidate/review
+matches OCR?  candidate?
+ /     \       /       \
+yes     no    yes       no
+ ↓       ↓     ↓         ↓
+Qwen    QWEN_ QWEN_    REVIEW
+verify  CAND. CANDIDATE
+   ↓      \     /
+agrees?    \   /
+ /    \     \ /
+yes    no candidate/review
+ ↓      ↓       /
+CONF. QWEN_CAND./
+       REVIEW
           \   /
        evidence resolution
                   ↓

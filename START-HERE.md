@@ -312,17 +312,20 @@ DETR crop
        /       \
 candidate       none
    ↓             ↓
-Qwen verifies   Qwen direct read
+Qwen direct read
    ↓             ↓
-unanchored      candidate?
-direct read     /        \
-   ↓           yes        no
-all three       ↓          ↓
-agree?         QWEN_     REVIEW
- /    \        CANDIDATE
-yes    no         /
+matches OCR?    candidate?
+ /      \        /       \
+yes      no     yes       no
+ ↓        ↓      ↓         ↓
+Qwen     QWEN_  QWEN_    REVIEW
+verifies CAND.  CANDIDATE
+   ↓        \     /
+agrees?      \   /
+ /    \       \ /
+yes    no candidate/review
  ↓      ↓        /
-CONFIRMED candidate/review
+CONFIRMED QWEN_CAND./REVIEW
              \   /
               ↓
        candidate resolution

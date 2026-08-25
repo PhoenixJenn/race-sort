@@ -16,7 +16,7 @@ EXPECTED_FILTERED_NON_PRIMARY = 7
 EXPECTED_FILTERED_TOO_BLURRY = 2
 EXPECTED_OCR_CANDIDATE_CASES = 13
 EXPECTED_OCR_EMPTY_CASES = 11
-EXPECTED_QWEN_VERIFY_CALLS = 13
+EXPECTED_QWEN_VERIFY_CALLS = 10
 EXPECTED_QWEN_DIRECT_CALLS = 24
 EXPECTED_REVIEW_WORKLOAD = 10
 
@@ -181,7 +181,11 @@ ocr_empty_cases = sum(
     if not vehicle["routing"]["ocr_candidates"]
 )
 
-qwen_verify_calls = ocr_candidate_cases
+qwen_verify_calls = sum(
+    1
+    for vehicle in processed_vehicles
+    if vehicle["routing"]["qwen_verify_raw"] is not None
+)
 
 qwen_direct_calls = sum(
     1
@@ -199,15 +203,33 @@ check(
     f"OCR empty cases == {EXPECTED_OCR_EMPTY_CASES}",
 )
 
-check(
+warn_if_false(
     qwen_verify_calls == EXPECTED_QWEN_VERIFY_CALLS,
-    f"Qwen verification calls == {EXPECTED_QWEN_VERIFY_CALLS}",
+    (
+        "Qwen verification-call count differs from the expected "
+        f"{EXPECTED_QWEN_VERIFY_CALLS}; observed {qwen_verify_calls}"
+    ),
 )
 
 check(
     qwen_direct_calls == EXPECTED_QWEN_DIRECT_CALLS,
     f"Qwen direct calls == {EXPECTED_QWEN_DIRECT_CALLS}",
 )
+
+for vehicle in processed_vehicles:
+    routing = vehicle["routing"]
+
+    if routing["qwen_verify_raw"] is None:
+        continue
+
+    check(
+        routing["qwen_direct_number"]
+        in routing["ocr_candidates"],
+        (
+            "anchored verification only runs after OCR/direct "
+            "candidate agreement"
+        ),
+    )
 
 
 # ------------------------------------------------------------------

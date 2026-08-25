@@ -330,7 +330,7 @@ FILTERED_NON_PRIMARY: 7
 FILTERED_TOO_BLURRY: 2
 OCR candidate cases: 13
 OCR empty cases: 11
-Qwen verification calls: 13
+Qwen verification calls after direct-first routing: approximately 9–10
 Qwen direct calls under current safety policy: 24
 ```
 

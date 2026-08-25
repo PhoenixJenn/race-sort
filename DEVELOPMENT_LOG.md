@@ -915,3 +915,34 @@ regression checks: 89 passed, 0 failed
 ```
 
 The same run completed in 51.22 seconds, but this speed must not yet be attributed to a code optimization because Qwen/Ollama latency varied substantially between otherwise similar runs.
+
+## 2026-08-24 — Skip Anchored Verification When OCR and Direct Read Disagree
+
+The three-signal confirmation policy requires OCR, an unanchored direct read, and anchored verification to agree exactly. Therefore, anchored verification cannot promote a crop when OCR and the direct read already disagree.
+
+The hardware-agnostic routing order was changed to:
+
+```text
+RapidOCR
+→ unanchored direct Qwen read
+→ compare OCR and direct result
+→ run anchored verification only when they already agree
+```
+
+This reduced anchored verification calls from 13 to approximately 9–10 while keeping 24 direct safety reads.
+
+Regression results remained safe:
+
+```text
+hard regression failures: 0
+human-review workload: 10–11
+```
+
+Warm timing did not establish a measurable speedup:
+
+```text
+previous warm runs: 51.24s, 57.08s
+optimized warm runs: 53.39s, 62.49s
+```
+
+Qwen timing variance was larger than the time saved by three verification calls. The change was retained because it removes logically unnecessary model work without weakening confirmation safety, but it must not be represented as a proven throughput improvement.

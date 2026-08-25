@@ -1413,87 +1413,69 @@ for photo_number, image_path in enumerate(
         if ocr_candidates:
 
             ocr_candidate_count += 1
-            qwen_verify_calls += 1
+            qwen_direct_calls += 1
 
             (
-                qwen_verify_number,
-                verify_elapsed,
-                qwen_verify_raw,
-            ) = verify_ocr_candidates(
-                crop_path,
-                ocr_candidates,
+                qwen_direct_number,
+                direct_elapsed,
+                qwen_direct_raw,
+            ) = direct_qwen_read(
+                crop_path
             )
 
-            total_qwen_verify_time += verify_elapsed
+            total_qwen_direct_time += direct_elapsed
 
 
-            if qwen_verify_number is not None:
+            # Anchored verification can only contribute to a
+            # three-way confirmation when the independent
+            # direct read already matches an OCR candidate.
+            if (
+                qwen_direct_number is not None
+                and qwen_direct_number in ocr_candidates
+            ):
 
-                # Candidate verification is anchored by the
-                # OCR suggestion, so it is not sufficiently
-                # independent for automatic confirmation.
-                # Require an unanchored direct read as a third
-                # agreeing signal.
-                qwen_direct_calls += 1
+                qwen_verify_calls += 1
 
                 (
-                    qwen_direct_number,
-                    direct_elapsed,
-                    qwen_direct_raw,
-                ) = direct_qwen_read(
-                    crop_path
+                    qwen_verify_number,
+                    verify_elapsed,
+                    qwen_verify_raw,
+                ) = verify_ocr_candidates(
+                    crop_path,
+                    ocr_candidates,
                 )
 
-                total_qwen_direct_time += direct_elapsed
+                total_qwen_verify_time += verify_elapsed
 
 
                 if (
-                    qwen_direct_number
-                    == qwen_verify_number
+                    qwen_verify_number
+                    == qwen_direct_number
                 ):
-                    final_number = qwen_verify_number
+                    final_number = qwen_direct_number
                     decision = "CONFIRMED"
-                    route = "OCR_VERIFY_DIRECT_AGREE"
+                    route = "OCR_DIRECT_VERIFY_AGREE"
                     fast_confirmed_count += 1
 
-                elif qwen_direct_number is not None:
+                else:
                     final_number = qwen_direct_number
                     decision = "QWEN_CANDIDATE"
-                    route = "OCR_VERIFY_DIRECT_CONFLICT"
+                    route = "OCR_DIRECT_VERIFY_REJECTED"
                     qwen_candidate_count += 1
 
-                else:
-                    final_number = None
-                    decision = "REVIEW"
-                    route = "OCR_VERIFY_DIRECT_UNKNOWN"
-                    review_count_total += 1
+
+            elif qwen_direct_number is not None:
+                final_number = qwen_direct_number
+                decision = "QWEN_CANDIDATE"
+                route = "OCR_DIRECT_CONFLICT"
+                qwen_candidate_count += 1
 
 
             else:
-
-                qwen_direct_calls += 1
-
-                (
-                    qwen_direct_number,
-                    direct_elapsed,
-                    qwen_direct_raw,
-                ) = direct_qwen_read(
-                    crop_path
-                )
-
-                total_qwen_direct_time += direct_elapsed
-
-                if qwen_direct_number is not None:
-                    final_number = qwen_direct_number
-                    decision = "QWEN_CANDIDATE"
-                    route = "OCR_REJECTED_DIRECT_CANDIDATE"
-                    qwen_candidate_count += 1
-
-                else:
-                    final_number = None
-                    decision = "REVIEW"
-                    route = "OCR_REJECTED_DIRECT_UNKNOWN"
-                    review_count_total += 1
+                final_number = None
+                decision = "REVIEW"
+                route = "OCR_DIRECT_UNKNOWN"
+                review_count_total += 1
 
 
         else:
