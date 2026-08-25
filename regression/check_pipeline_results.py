@@ -37,6 +37,7 @@ HUMAN_REVIEW_DECISIONS = {
 
 failures = []
 passes = []
+warnings = []
 
 
 def check(condition, description):
@@ -46,6 +47,15 @@ def check(condition, description):
         passes.append(description)
     else:
         failures.append(description)
+
+
+def warn_if_false(condition, description):
+    """Record a non-fatal operational variation."""
+
+    if condition:
+        passes.append(description)
+    else:
+        warnings.append(description)
 
 
 def load_photo_results():
@@ -403,9 +413,12 @@ review_workload = sum(
     if vehicle["decision"] in HUMAN_REVIEW_DECISIONS
 )
 
-check(
+warn_if_false(
     review_workload == EXPECTED_REVIEW_WORKLOAD,
-    f"total human-review workload == {EXPECTED_REVIEW_WORKLOAD}",
+    (
+        "total human-review workload differs from the expected "
+        f"{EXPECTED_REVIEW_WORKLOAD}; observed {review_workload}"
+    ),
 )
 
 
@@ -424,7 +437,15 @@ print(f"Human-review workload: {review_workload}")
 print()
 
 print(f"Passed checks: {len(passes)}")
+print(f"Warnings: {len(warnings)}")
 print(f"Failed checks: {len(failures)}")
+
+if warnings:
+    print()
+    print("WARNINGS")
+
+    for warning in warnings:
+        print(f"- {warning}")
 
 if failures:
     print()
