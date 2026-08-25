@@ -314,12 +314,15 @@ candidate       none
    ↓             ↓
 Qwen verifies   Qwen direct read
    ↓             ↓
-exact agree?    candidate?
- /      \        /      \
-yes      no     yes       no
- ↓        ↓      ↓         ↓
-CONFIRMED direct QWEN_    REVIEW
-           read CANDIDATE
+unanchored      candidate?
+direct read     /        \
+   ↓           yes        no
+all three       ↓          ↓
+agree?         QWEN_     REVIEW
+ /    \        CANDIDATE
+yes    no         /
+ ↓      ↓        /
+CONFIRMED candidate/review
              \   /
               ↓
        candidate resolution
@@ -389,16 +392,20 @@ The blur filter now prevents them from reaching expensive Qwen inference.
 
 # 11. OCR + Qwen Rules
 
-## OCR candidate + exact Qwen agreement
+## OCR candidate + anchored Qwen agreement
 
-Current experimental policy:
+OCR plus candidate-list verification is not enough for automatic confirmation. The anchored verification prompt once repeated the incorrect OCR value `122` for a motorcycle whose visible number was `721`.
+
+Current conservative policy:
 
 ```text
 OCR candidate
-+
-Qwen verifies that exact candidate
++ Qwen verifies that exact candidate
++ unanchored direct Qwen read returns the same identifier
 → CONFIRMED
 ```
+
+If the direct read disagrees, keep the direct result as `QWEN_CANDIDATE`. If it is unreadable, use `REVIEW`.
 
 ## OCR rejected by Qwen
 

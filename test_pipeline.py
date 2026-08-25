@@ -1429,10 +1429,44 @@ for photo_number, image_path in enumerate(
 
             if qwen_verify_number is not None:
 
-                final_number = qwen_verify_number
-                decision = "CONFIRMED"
-                route = "OCR_QWEN_AGREE"
-                fast_confirmed_count += 1
+                # Candidate verification is anchored by the
+                # OCR suggestion, so it is not sufficiently
+                # independent for automatic confirmation.
+                # Require an unanchored direct read as a third
+                # agreeing signal.
+                qwen_direct_calls += 1
+
+                (
+                    qwen_direct_number,
+                    direct_elapsed,
+                    qwen_direct_raw,
+                ) = direct_qwen_read(
+                    crop_path
+                )
+
+                total_qwen_direct_time += direct_elapsed
+
+
+                if (
+                    qwen_direct_number
+                    == qwen_verify_number
+                ):
+                    final_number = qwen_verify_number
+                    decision = "CONFIRMED"
+                    route = "OCR_VERIFY_DIRECT_AGREE"
+                    fast_confirmed_count += 1
+
+                elif qwen_direct_number is not None:
+                    final_number = qwen_direct_number
+                    decision = "QWEN_CANDIDATE"
+                    route = "OCR_VERIFY_DIRECT_CONFLICT"
+                    qwen_candidate_count += 1
+
+                else:
+                    final_number = None
+                    decision = "REVIEW"
+                    route = "OCR_VERIFY_DIRECT_UNKNOWN"
+                    review_count_total += 1
 
 
             else:
@@ -2364,6 +2398,97 @@ total_human_review_workload = (
     + unsupported_count
 )
 
+average_vehicle_time = (
+    total_vehicle_time / total_vehicles_processed
+    if total_vehicles_processed > 0
+    else 0.0
+)
+
+average_photo_time = (
+    batch_elapsed / len(image_paths)
+    if image_paths
+    else 0.0
+)
+
+projected_1000_photo_minutes = (
+    average_photo_time
+    * 1000
+    / 60
+)
+
+
+# ============================================================
+# SAVE MACHINE-READABLE RUN SUMMARY
+# ============================================================
+
+run_summary = {
+    "models": {
+        "detector": DETECTOR_MODEL,
+        "vision": VISION_MODEL,
+        "dino": DINO_MODEL,
+    },
+    "thresholds": {
+        "detection": DETECTION_THRESHOLD,
+        "non_primary_max_relative_area": MAX_FILTER_AREA,
+        "non_primary_max_relative_sharpness": (
+            MAX_FILTER_RELATIVE_SHARPNESS
+        ),
+        "too_blurry_max_sharpness": MAX_BLUR_SHARPNESS,
+        "dino_corroboration": DINO_CORROBORATION_THRESHOLD,
+    },
+    "counts": {
+        "photos_processed": len(image_paths),
+        "vehicles_processed": total_vehicles_processed,
+        "confirmed": fast_confirmed_count,
+        "qwen_candidates_routed": qwen_candidate_count,
+        "corroborated": corroborated_count,
+        "known_number_review": known_number_review_count,
+        "conflicting": conflicting_count,
+        "unsupported": unsupported_count,
+        "filtered_non_primary": filtered_non_primary_count,
+        "filtered_too_blurry": filtered_too_blurry_count,
+        "review": review_count_total,
+        "total_human_review_workload": (
+            total_human_review_workload
+        ),
+        "ocr_candidate_cases": ocr_candidate_count,
+        "ocr_empty_cases": ocr_empty_count,
+        "qwen_verify_calls": qwen_verify_calls,
+        "qwen_direct_calls": qwen_direct_calls,
+    },
+    "timing_seconds": {
+        "detr_total": total_detr_time,
+        "ocr_total": total_ocr_time,
+        "qwen_verify_total": total_qwen_verify_time,
+        "qwen_direct_total": total_qwen_direct_time,
+        "dino_total": total_dino_time,
+        "batch_total": batch_elapsed,
+        "average_vehicle": average_vehicle_time,
+        "average_photo": average_photo_time,
+    },
+    "projection": {
+        "photos": 1000,
+        "minutes": projected_1000_photo_minutes,
+    },
+}
+
+run_summary_path = (
+    OUTPUT_DIR
+    / "run-summary.json"
+)
+
+with open(
+    run_summary_path,
+    "w",
+    encoding="utf-8",
+) as json_file:
+
+    json.dump(
+        run_summary,
+        json_file,
+        indent=2,
+    )
+
 
 print("=" * 70)
 print("PHASE 3B BATCH COMPLETE")
@@ -2494,22 +2619,11 @@ if total_vehicles_processed > 0:
 
     print(
         f"Average vehicle total: "
-        f"{total_vehicle_time / total_vehicles_processed:.2f}s"
+        f"{average_vehicle_time:.2f}s"
     )
 
 
-if len(image_paths) > 0:
-
-    average_photo_time = (
-        batch_elapsed
-        / len(image_paths)
-    )
-
-    projected_minutes = (
-        average_photo_time
-        * 1000
-        / 60
-    )
+if image_paths:
 
     print()
 
@@ -2520,7 +2634,7 @@ if len(image_paths) > 0:
 
     print(
         f"Projected 1,000-photo time: "
-        f"{projected_minutes:.1f} minutes"
+        f"{projected_1000_photo_minutes:.1f} minutes"
     )
 
 
@@ -2534,4 +2648,9 @@ print(
 print(
     f"DINO resolution CSV: "
     f"{dino_results_path}"
+)
+
+print(
+    f"Run summary JSON: "
+    f"{run_summary_path}"
 )

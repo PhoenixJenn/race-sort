@@ -873,3 +873,45 @@ Only after correctness is preserved in the consolidated pipeline:
 4. deploy/test on the photographer's Windows PC
 5. verify fully offline event operation
 6. continue toward production export/copy workflow and polished UI
+
+## 2026-08-24 — Consolidated Regression Caught Anchored Verification Failure
+
+The validated routing, quality filters, and independent DINO resolution were consolidated into `test_pipeline.py`. A new read-only regression checker was added at `regression/check_pipeline_results.py`.
+
+One repeated regression run exposed a false automatic confirmation:
+
+```text
+GGBM0018 motorcycle-01
+RapidOCR: 122
+candidate-anchored Qwen verification: 122
+actual visible number: 721
+```
+
+This demonstrated that OCR plus a Qwen prompt containing the OCR candidate is not two fully independent signals. The regression checker correctly failed rather than accepting the lower review workload as an improvement.
+
+The routing rule was made more conservative:
+
+```text
+OCR candidate
++ anchored Qwen verification
++ unanchored direct Qwen read
+→ CONFIRMED only when all three agree exactly
+```
+
+Otherwise, a nonempty direct read remains `QWEN_CANDIDATE`, and an unreadable direct result becomes `REVIEW`.
+
+The corrected 19-photo / 33-crop run produced:
+
+```text
+CONFIRMED: 10
+CORROBORATED: 4
+KNOWN_NUMBER_REVIEW: 2
+UNSUPPORTED: 3
+REVIEW: 5
+human-review workload: 10
+Qwen verification calls: 13
+Qwen direct calls: 24
+regression checks: 89 passed, 0 failed
+```
+
+The same run completed in 51.22 seconds, but this speed must not yet be attributed to a code optimization because Qwen/Ollama latency varied substantially between otherwise similar runs.

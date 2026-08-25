@@ -126,14 +126,17 @@ candidate    none
    ↓           ↓
 Qwen verify  Qwen direct read
    ↓           ↓
-agrees?      candidate?
- /    \        /    \
-yes    no     yes    no
- ↓      ↓      ↓      ↓
-CONF.  direct  QWEN   REVIEW
-        read   CANDIDATE
-          \      /
-           evidence resolution
+unanchored    candidate?
+direct read   /       \
+   ↓         yes       no
+all three     ↓         ↓
+agree?       QWEN_    REVIEW
+ /    \      CANDIDATE
+yes    no       /
+ ↓      ↓      /
+CONF. candidate/review
+          \   /
+       evidence resolution
                   ↓
        registry + independent DINO
                   ↓
@@ -141,7 +144,7 @@ CONF.  direct  QWEN   REVIEW
        CONFLICTING / REVIEW
 ```
 
-This architecture is still being consolidated into the main pipeline. The isolated experiments are the current source for the routing behavior.
+This routing architecture is now consolidated in `test_pipeline.py` and checked by `regression/check_pipeline_results.py` on the 19-photo / 33-crop regression batch.
 
 ## Validated Filtering Rules
 
@@ -194,13 +197,28 @@ RapidOCR is now a useful cheap first stage. Earlier versions of the project post
 
 Important rules:
 
-### OCR Candidate + Qwen Agreement
+### OCR Candidate + Anchored Qwen Agreement
 
-If OCR produces a plausible candidate and Qwen independently verifies that exact candidate, the current routing experiment permits:
+OCR plus candidate-list verification is not sufficient for automatic confirmation. The verification prompt is anchored by the OCR suggestion and can repeat a plausible but incorrect OCR value.
+
+A regression run demonstrated this failure on GGBM0018 motorcycle-01:
 
 ```text
-OCR_QWEN_AGREE → CONFIRMED
+OCR candidate: 122
+anchored Qwen verification: 122
+actual visible number: 721
 ```
+
+Current conservative confirmation rule:
+
+```text
+OCR candidate
++ anchored Qwen verification of that exact candidate
++ unanchored direct Qwen read of that exact identifier
+→ CONFIRMED
+```
+
+If the direct read disagrees, its result remains `QWEN_CANDIDATE`. If it is unreadable, route the crop to `REVIEW`.
 
 ### OCR Candidate Rejected by Qwen
 
