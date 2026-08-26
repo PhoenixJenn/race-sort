@@ -978,3 +978,65 @@ Conclusion:
 - the expected end-to-end saving is currently too small to justify that larger pipeline change.
 
 The result is preserved as evidence, but OCR concurrency is not yet integrated into the main pipeline.
+
+## 2026-08-25 — Qwen Serial vs Two-Call Concurrency Benchmark
+
+An isolated benchmark was added at:
+
+```text
+experiments/benchmark_qwen_concurrency.py
+```
+
+The experiment used the main pipeline's unanchored direct-read prompt on four fixed crops:
+
+- clear #49;
+- valid race number `0`;
+- recovery case #54;
+- a clear but numberless motorcycle expected to return `UNKNOWN`.
+
+The first benchmark version warmed only one crop, which gave the later two-call mode an unfair warm-state advantage. That preliminary `13.79x` headline was rejected as invalid. The benchmark was corrected to:
+
+- warm every fixed crop before timing;
+- run serial first in odd rounds;
+- run two-call mode first in even rounds;
+- preserve raw responses, normalized identifiers, per-call timing, execution order, API errors, and Ollama model state.
+
+Corrected results:
+
+```text
+Round 1
+serial first: 0.65s
+two-call:     0.82s
+
+Round 2
+two-call first: 0.67s
+serial:         0.68s
+
+serial median:   0.67s
+two-call median: 0.75s
+relative speed:  0.89x
+API errors:      0
+```
+
+All three readable identifiers remained correct in every call:
+
+```text
+49
+0
+54
+```
+
+The numberless motorcycle hallucinated a different candidate depending on the run and scheduling:
+
+```text
+serial:   86, 81
+two-call: 38, 83
+```
+
+Conclusion:
+
+- two simultaneous Qwen calls were approximately 11% slower than serial calls on the current development setup;
+- concurrent scheduling changed nondeterministic hallucinated output;
+- the numberless outputs remain safely contained by the main pipeline's candidate/review policy;
+- Qwen concurrency must not be integrated into the current main pipeline;
+- Qwen remains serialized by default.
