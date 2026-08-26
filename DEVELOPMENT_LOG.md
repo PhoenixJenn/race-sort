@@ -946,3 +946,35 @@ optimized warm runs: 53.39s, 62.49s
 ```
 
 Qwen timing variance was larger than the time saved by three verification calls. The change was retained because it removes logically unnecessary model work without weakening confirmation safety, but it must not be represented as a proven throughput improvement.
+
+## 2026-08-25 — RapidOCR One-Worker vs Two-Worker Benchmark
+
+An isolated benchmark was added at:
+
+```text
+experiments/benchmark_ocr_workers.py
+```
+
+The experiment used the 24 current crops that passed the validated quality filters. Each executor thread owned a separate persistent RapidOCR engine; no engine instance was shared concurrently. Workers were warmed before timing.
+
+Three timed rounds per mode produced:
+
+```text
+serial:      6.424s, 5.816s, 5.840s
+two workers: 5.033s, 5.021s, 5.052s
+
+serial median:      5.840s
+two-worker median:  5.033s
+median speedup:     1.16x
+```
+
+Raw OCR texts and normalized candidate lists were identical across every serial and two-worker round.
+
+Conclusion:
+
+- two independent OCR workers produced a repeatable but modest improvement of approximately 0.81 seconds across 24 crops;
+- ONNX Runtime already performs internal parallel work, so two Python workers did not approach a 2x speedup;
+- integrating this result would require restructuring the current photo-by-photo pipeline to stage OCR work across crops;
+- the expected end-to-end saving is currently too small to justify that larger pipeline change.
+
+The result is preserved as evidence, but OCR concurrency is not yet integrated into the main pipeline.
