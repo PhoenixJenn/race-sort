@@ -1040,3 +1040,63 @@ Conclusion:
 - the numberless outputs remain safely contained by the main pipeline's candidate/review policy;
 - Qwen concurrency must not be integrated into the current main pipeline;
 - Qwen remains serialized by default.
+
+## 2026-08-25 — Number-Visibility Gate Rejected
+
+An isolated three-state visibility experiment was added at:
+
+```text
+experiments/benchmark_number_visibility.py
+```
+
+The proposed gate asked Qwen to return exactly one of:
+
+```text
+VISIBLE_NUMBER
+NO_NUMBER_VISIBLE
+UNCLEAR
+```
+
+Only `NO_NUMBER_VISIBLE` would have been eligible to bypass later number-reading work. `UNCLEAR` was designed to continue through normal routing.
+
+The experiment used all 24 processable crops with available human validation:
+
+```text
+CLEAR: 16
+NO_NUMBER_VISIBLE: 5
+NOT_READABLE: 1
+UNLABELED: 2
+```
+
+One round produced:
+
+```text
+VISIBLE_NUMBER: 19
+NO_NUMBER_VISIBLE: 5
+
+clear-number false rejections: 0
+unsafe uncertain/unlabeled rejections: 2
+numberless caught: 3/5
+numberless recall: 60.0%
+API errors: 0
+total time: 146.61s
+median call time: 6.50s
+```
+
+Unsafe results:
+
+- GGBM0013 vehicle 2 was human-labeled `NOT_READABLE` but the gate returned `NO_NUMBER_VISIBLE`;
+- GGBM0018 vehicle 2 was unlabeled but the gate returned `NO_NUMBER_VISIBLE`.
+
+Missed confirmed numberless crops:
+
+- GGBM0012 vehicle 1 returned `VISIBLE_NUMBER`;
+- GGBM0020 vehicle 2 returned `VISIBLE_NUMBER`.
+
+Conclusion:
+
+- the gate was too slow to be a cheap filter;
+- it caught only three of five confirmed numberless crops;
+- it made two unsafe rejection decisions on uncertain evidence;
+- no second round was justified under the predeclared stop rule;
+- the visibility gate must not be integrated into the main pipeline.
