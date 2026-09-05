@@ -30,8 +30,19 @@ from transformers import (
 # CONFIGURATION
 # ============================================================
 
-INPUT_DIR = Path("test-photos")
-OUTPUT_DIR = Path("test-output")
+INPUT_DIR = Path(
+    os.environ.get(
+        "RACESORT_INPUT_DIR",
+        "test-photos",
+    )
+)
+
+OUTPUT_DIR = Path(
+    os.environ.get(
+        "RACESORT_OUTPUT_DIR",
+        "test-output",
+    )
+)
 
 DETECTOR_MODEL = "facebook/detr-resnet-50"
 VISION_MODEL = "qwen3-vl:4b-instruct"
@@ -39,6 +50,23 @@ DINO_MODEL = "facebook/dinov2-small"
 
 DETECTION_THRESHOLD = 0.70
 MAX_CROP_SIZE = 1500
+
+# Experimental, opt-in recovery for rare DETR boxes that contain two
+# distinct motorcycles. The normal 0.70 behavior remains the default.
+ENABLE_MERGED_BOX_SPLIT = (
+    os.environ.get(
+        "RACESORT_ENABLE_MERGED_BOX_SPLIT",
+        "0",
+    ).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+MERGED_BOX_CHILD_THRESHOLD = 0.275
+MERGED_BOX_MIN_CHILD_CONTAINMENT = 0.80
+MERGED_BOX_MIN_CHILD_AREA_RATIO = 0.12
+MERGED_BOX_MAX_CHILD_AREA_RATIO = 0.80
+MERGED_BOX_MAX_CHILD_IOU = 0.55
+MERGED_BOX_MIN_CHILD_AREA_BALANCE = 0.50
+MERGED_BOX_MIN_HORIZONTAL_SEPARATION = 0.33
 
 # Human-validated conservative quality filters.
 MAX_FILTER_AREA = 0.20
@@ -341,6 +369,168 @@ def is_source_photo(path):
         return False
 
     return True
+
+
+def box_area(box):
+    """Return the non-negative area of one DETR box."""
+
+    left, top, right, bottom = box
+    return max(0.0, right - left) * max(0.0, bottom - top)
+
+
+def box_intersection_area(first, second):
+    """Return the shared area of two DETR boxes."""
+
+    left = max(first[0], second[0])
+    top = max(first[1], second[1])
+    right = min(first[2], second[2])
+    bottom = min(first[3], second[3])
+    return max(0.0, right - left) * max(0.0, bottom - top)
+
+
+def box_containment(child, parent):
+    """Return the fraction of a child box inside its parent."""
+
+    child_area = box_area(child)
+    if child_area == 0:
+        return 0.0
+
+    return box_intersection_area(child, parent) / child_area
+
+
+def box_iou(first, second):
+    """Return intersection-over-union for two DETR boxes."""
+
+    intersection = box_intersection_area(first, second)
+    union = box_area(first) + box_area(second) - intersection
+    if union == 0:
+        return 0.0
+
+    return intersection / union
+
+
+def find_merged_box_children(parent, detections):
+    """Find two conservative low-confidence children for one parent."""
+
+    parent_area = box_area(parent["box"])
+    parent_width = parent["box"][2] - parent["box"][0]
+
+    if parent_area == 0 or parent_width <= 0:
+        return None
+
+    candidates = []
+
+    for detection in detections:
+        if detection is parent:
+            continue
+
+        area_ratio = box_area(detection["box"]) / parent_area
+
+        if (
+            MERGED_BOX_MIN_CHILD_AREA_RATIO
+            <= area_ratio
+            <= MERGED_BOX_MAX_CHILD_AREA_RATIO
+            and box_containment(detection["box"], parent["box"])
+            >= MERGED_BOX_MIN_CHILD_CONTAINMENT
+        ):
+            candidates.append(detection)
+
+    valid_pairs = []
+
+    for first_index, first in enumerate(candidates):
+        for second in candidates[first_index + 1:]:
+            first_area = box_area(first["box"])
+            second_area = box_area(second["box"])
+            area_balance = (
+                min(first_area, second_area)
+                / max(first_area, second_area)
+            )
+            first_center = (first["box"][0] + first["box"][2]) / 2
+            second_center = (second["box"][0] + second["box"][2]) / 2
+            horizontal_separation = (
+                abs(first_center - second_center)
+                / parent_width
+            )
+
+            if (
+                box_iou(first["box"], second["box"])
+                <= MERGED_BOX_MAX_CHILD_IOU
+                and area_balance
+                >= MERGED_BOX_MIN_CHILD_AREA_BALANCE
+                and horizontal_separation
+                >= MERGED_BOX_MIN_HORIZONTAL_SEPARATION
+            ):
+                valid_pairs.append(
+                    (
+                        first["score"] + second["score"],
+                        first,
+                        second,
+                    )
+                )
+
+    if not valid_pairs:
+        return None
+
+    _, first, second = max(
+        valid_pairs,
+        key=lambda item: item[0],
+    )
+    return [first, second]
+
+
+def resolve_merged_vehicle_boxes(detections):
+    """Replace a strong merged parent with two validated child boxes."""
+
+    baseline = [
+        detection
+        for detection in detections
+        if detection["score"] >= DETECTION_THRESHOLD
+    ]
+
+    if (
+        not ENABLE_MERGED_BOX_SPLIT
+        or DETECTION_CLASS != "motorcycle"
+    ):
+        return baseline
+
+    replacements = {}
+    used_children = set()
+
+    for parent in sorted(
+        baseline,
+        key=lambda item: item["score"],
+        reverse=True,
+    ):
+        children = find_merged_box_children(parent, detections)
+
+        if (
+            children is None
+            or any(id(child) in used_children for child in children)
+        ):
+            continue
+
+        replacements[id(parent)] = children
+        used_children.update(id(child) for child in children)
+
+    resolved = []
+    resolved_ids = set()
+
+    for detection in baseline:
+        children = replacements.get(id(detection))
+
+        if children is None:
+            if id(detection) not in resolved_ids:
+                resolved.append(detection)
+                resolved_ids.add(id(detection))
+            continue
+
+        for child in children:
+            child["detection_source"] = "merged_box_child"
+            if id(child) not in resolved_ids:
+                resolved.append(child)
+                resolved_ids.add(id(child))
+
+    return resolved
 
 
 def normalize_number(value):
@@ -865,8 +1055,23 @@ print(
 )
 
 print(
+    f"Input directory: "
+    f"{INPUT_DIR}"
+)
+
+print(
+    f"Output directory: "
+    f"{OUTPUT_DIR}"
+)
+
+print(
     f"DETR class: "
     f"{DETECTION_CLASS}"
+)
+
+print(
+    "Merged-box recovery: "
+    + ("enabled" if ENABLE_MERGED_BOX_SPLIT else "disabled")
 )
 
 print()
@@ -1040,12 +1245,16 @@ for photo_number, image_path in enumerate(
             target_sizes=
                 target_sizes,
             threshold=
-                DETECTION_THRESHOLD,
+                (
+                    MERGED_BOX_CHILD_THRESHOLD
+                    if ENABLE_MERGED_BOX_SPLIT
+                    else DETECTION_THRESHOLD
+                ),
         )[0]
     )
 
 
-    vehicles = []
+    detection_candidates = []
 
     for (
         score,
@@ -1070,15 +1279,23 @@ for photo_number, image_path in enumerate(
             == DETECTION_CLASS
         ):
 
-            vehicles.append(
+            detection_candidates.append(
                 {
                     "score":
                         score.item(),
 
                     "box":
                         box.tolist(),
+
+                    "detection_source":
+                        "baseline",
                 }
             )
+
+
+    vehicles = resolve_merged_vehicle_boxes(
+        detection_candidates
+    )
 
 
     # Left-to-right ordering.
@@ -1334,6 +1551,9 @@ for photo_number, image_path in enumerate(
                 {
                     "vehicle": index,
                     "detr_confidence": vehicle["score"],
+                    "detection_source": vehicle[
+                        "detection_source"
+                    ],
                     "profile_number": None,
                     "verification_number": None,
                     "final_number": None,
@@ -1619,6 +1839,9 @@ for photo_number, image_path in enumerate(
 
             "detr_confidence":
                 vehicle["score"],
+
+            "detection_source":
+                vehicle["detection_source"],
 
             "profile_number":
                 number_a,
@@ -2411,6 +2634,10 @@ run_summary = {
     },
     "thresholds": {
         "detection": DETECTION_THRESHOLD,
+        "merged_box_split_enabled": ENABLE_MERGED_BOX_SPLIT,
+        "merged_box_child_detection": (
+            MERGED_BOX_CHILD_THRESHOLD
+        ),
         "non_primary_max_relative_area": MAX_FILTER_AREA,
         "non_primary_max_relative_sharpness": (
             MAX_FILTER_RELATIVE_SHARPNESS

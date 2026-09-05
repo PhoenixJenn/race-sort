@@ -1100,3 +1100,53 @@ Conclusion:
 - it made two unsafe rejection decisions on uncertain evidence;
 - no second round was justified under the predeclared stop rule;
 - the visibility gate must not be integrated into the main pipeline.
+
+## 2026-09-04 — Opt-In Merged-Motorcycle Recovery Validated
+
+Human review found that `GGBM0082.JPG` contains motorcycles `869` and
+`215`, while the normal DETR threshold produced one high-confidence box
+covering both motorcycles.
+
+An isolated 158-photo sweep tested whether lower-confidence DETR boxes could
+conservatively split a high-confidence merged parent. The initial geometric
+rule produced three false proposals. Adding both of these requirements removed
+the observed false proposals:
+
+- child boxes must have an area balance of at least `0.50`;
+- their horizontal centers must be separated by at least `0.33` of the parent
+  width.
+
+At the selected child threshold of `0.275`, the refined rule proposed splits
+for only two photos:
+
+```text
+GGBM0021.JPG: 4 resolved motorcycles
+GGBM0082.JPG: 2 resolved motorcycles
+```
+
+Both proposals were visually valid. A complete two-photo pipeline run then
+produced:
+
+```text
+GGBM0021: two baseline crops and two merged-box child crops
+GGBM0082: merged-box child #869, UNSUPPORTED
+GGBM0082: merged-box child #215, UNSUPPORTED
+```
+
+The identifiers `869` and `215` were preserved as strings. `UNSUPPORTED`
+remains a human-review outcome, so the recovered numbers were not promoted to
+automatic assignments without corroborating evidence.
+
+Implementation status:
+
+- the recovery logic is available in `test_pipeline.py` only when
+  `RACESORT_ENABLE_MERGED_BOX_SPLIT=1`;
+- default `0.70` detection behavior is unchanged;
+- each result records `detection_source` as `baseline` or
+  `merged_box_child`;
+- detector-report and pipeline-output regression checks both pass;
+- the established 19-photo regression has zero failures.
+
+The next validation step is a full-dataset opt-in run followed by comparison
+of detection counts, review workload, and human-validated false splits before
+considering whether to enable the behavior by default.
