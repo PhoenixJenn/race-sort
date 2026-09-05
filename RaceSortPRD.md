@@ -29,6 +29,11 @@ A motorsports photographer may capture approximately:
 - 75–100 unique motorcycles normally and up to 150 maximum;
 - multiple useful vehicles in a single photograph.
 
+The normal schedule runs four A/B/C cycles from 9am to 1pm, a 1–2pm lunch,
+one final A/B/C cycle from 2–3pm, and photograph sales from 3–6pm. RaceSort
+should target useful, sales-ready assignments by the start of sales when media
+is available for incremental processing.
+
 The current manual workflow requires an assistant to inspect each image and enter every visible race number. This creates a large, time-sensitive sorting workload at events.
 
 AI recognition can reduce that workload, but individual OCR and vision-model outputs are imperfect. RaceSort therefore needs an evidence-based routing system that automates defensible cases while preserving human control over uncertainty.
@@ -84,7 +89,7 @@ Needs incremental, testable Python changes; explicit setup and test commands; re
 4. RaceSort detects sortable vehicles and creates separate analysis crops or proxies.
 5. RaceSort filters conservative non-primary and too-blurry crops.
 6. RaceSort routes remaining crops through OCR and vision-model recognition.
-7. After the first complete A/B/C cycle, RaceSort presents proposed numbers and visual variants for human confirmation.
+7. Shortly after the first complete A/B/C cycle, RaceSort presents proposed numbers and visual variants for a brief human confirmation while safe background processing continues.
 8. RaceSort builds an event-scoped, multi-variant registry from confirmed evidence.
 9. RaceSort resolves later-session candidates using independently confirmed evidence.
 10. RaceSort automatically assigns supported identifiers.
@@ -305,6 +310,7 @@ AND best independent DINO similarity >= 0.90
 - A failed or missing evidence layer must degrade to review, not an invented assignment.
 - Partial results should remain inspectable after an interruption where practical.
 - Generated output must be reproducible enough to diagnose model variability.
+- Human checkpoints must not unnecessarily block detection, quality analysis, or resumable work on later-arriving photographs.
 
 ### Maintainability
 
@@ -409,6 +415,8 @@ The recognition core is ready to support production workflow development when:
 - Implement safe ingest and event-state management.
 - Record event, group, cycle, and session context separately from race numbers.
 - Support a human-confirmation checkpoint after the first complete A/B/C cycle.
+- Continue safe background work while that checkpoint is reviewed.
+- Prioritize unresolved work and target sales-ready output by the 3pm sales window.
 - Implement persistent identity registry behavior.
 - Provide an efficient human-review workflow.
 - Implement non-destructive export/copy organization.

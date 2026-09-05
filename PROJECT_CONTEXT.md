@@ -26,9 +26,28 @@ A normal motorcycle event day has:
 
 The first complete A/B/C cycle is the natural first-pass checkpoint because it
 is the earliest point likely to expose the full day's participant population.
-RaceSort should support pausing after that cycle for a human to confirm proposed
-numbers and visual variants. The remaining four cycles can then use the
-confirmed event registry for cheaper ranking and review suggestions.
+RaceSort should present a checkpoint after that cycle for a human to confirm
+proposed numbers and visual variants without pausing safe background work. The
+remaining four cycles can then use the confirmed event registry for cheaper
+ranking and review suggestions.
+
+Typical event-day schedule:
+
+```text
+09:00–10:00  cycle 1: A, B, C (20 minutes each)
+10:00–11:00  cycle 2: A, B, C
+11:00–12:00  cycle 3: A, B, C
+12:00–13:00  cycle 4: A, B, C
+13:00–14:00  lunch
+14:00–15:00  cycle 5: A, B, C
+15:00–18:00  photograph sales
+```
+
+The cycle-one confirmation checkpoint must be short and should run while later
+shooting continues. It must not stop safe detection, quality analysis, or other
+background work. When photographs are available during the day, RaceSort should
+process incrementally and target sales-ready assignments by 15:00. Remaining
+uncertain cases should be prioritized for human attention before sales begin.
 
 Event, group, cycle, and session are contextual evidence and must be stored
 separately from the race-number string. Group membership may narrow candidates

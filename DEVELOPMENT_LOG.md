@@ -1565,3 +1565,28 @@ All 22 identifier, quality, and detection unit tests passed. Python compilation
 and the existing output regression checker passed with zero failures and the
 same two known Qwen-variation warnings. `test_pipeline.py` decreased from 2,934
 to 2,782 lines without changing thresholds, inference, routing, or outputs.
+
+## 2026-09-04 — Event-Day Clock and Sales Deadline
+
+The production schedule was clarified:
+
+```text
+09:00  cycle 1: A, B, C
+10:00  cycle 2: A, B, C
+11:00  cycle 3: A, B, C
+12:00  cycle 4: A, B, C
+13:00–14:00 lunch
+14:00  cycle 5: A, B, C
+15:00–18:00 photograph sales
+```
+
+Each A/B/C cycle consists of three consecutive 20-minute sessions. The first
+complete cycle ends around 10am and remains the proposed registry-confirmation
+checkpoint, but later shooting starts immediately. The review checkpoint must
+therefore be brief and must not prevent safe background detection, quality
+analysis, or resumable processing.
+
+When media is available throughout the day, the production target is useful,
+sales-ready sorting by 3pm. Unresolved cases should be prioritized for human
+attention before the sales window rather than presented as one undifferentiated
+queue after all processing finishes.
