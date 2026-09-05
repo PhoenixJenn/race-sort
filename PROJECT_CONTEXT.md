@@ -350,6 +350,17 @@ Human labels should be treated as regression ground truth for future experiments
 
 ## Registry and Evidence Fusion
 
+Race numbers are non-unique string labels, not unique vehicle or rider IDs.
+Within one event, more than one motorcycle/rider combination may legitimately
+use the same race number. The registry must therefore map an event-scoped race
+number to one or more visual variants, and each variant may contain multiple
+confirmed viewpoint references and structured vehicle/rider metadata. All
+variants still sort to the same race-number destination.
+
+Do not collapse a race number to one canonical motorcycle, rider, embedding,
+or profile. A visual mismatch with one known variant is not evidence that the
+number is wrong when another variant for that same number may exist.
+
 The project has experimented with:
 
 - `vehicle-registry.json`

@@ -39,7 +39,12 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Test later sightings against confirmed golden records.",
     )
-    parser.add_argument("validation_csv", type=Path)
+    parser.add_argument(
+        "validation_csv",
+        type=Path,
+        nargs="+",
+        help="One or more human-validation CSV files.",
+    )
     parser.add_argument(
         "--crop-root",
         type=Path,
@@ -66,9 +71,26 @@ def normalize_number(value):
 
 def resolve_crop(row, crop_root):
     crop = Path(row["crop"])
+    candidates = [crop]
     if not crop.is_absolute():
-        crop = crop_root / crop
-    return crop.resolve() if crop.exists() else None
+        candidates.append(crop_root / crop)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return None
+
+
+def is_confirmed_number(row):
+    """Accept explicit new labels or readable, reviewed legacy labels."""
+
+    if row.get("answer_type"):
+        return row["answer_type"] == "NUMBER"
+
+    return (
+        row.get("human_status") in {"CORRECT", "WRONG"}
+        and row.get("number_readability")
+        in {"CLEAR", "BLURRY_BUT_READABLE"}
+    )
 
 
 def measure_sharpness(path):
@@ -81,7 +103,7 @@ def measure_sharpness(path):
 def select_registry_and_queries(rows, crop_root):
     labeled = []
     for row in rows:
-        if row.get("answer_type") != "NUMBER":
+        if not is_confirmed_number(row):
             continue
         number = normalize_number(row.get("ground_truth"))
         crop = resolve_crop(row, crop_root)
@@ -178,11 +200,17 @@ def summarize_threshold(records, threshold):
 def main():
     args = parse_args()
     started = time.perf_counter()
-    with args.validation_csv.open(
-        newline="",
-        encoding="utf-8-sig",
-    ) as csv_file:
-        rows = list(csv.DictReader(csv_file))
+    rows = []
+    for validation_csv in args.validation_csv:
+        with validation_csv.open(
+            newline="",
+            encoding="utf-8-sig",
+        ) as csv_file:
+            for row in csv.DictReader(csv_file):
+                row["_source_validation_csv"] = str(
+                    validation_csv.resolve()
+                )
+                rows.append(row)
 
     golden_by_number, queries = select_registry_and_queries(
         rows,
@@ -282,7 +310,9 @@ def main():
     report = {
         "model": MODEL_NAME,
         "device": str(device),
-        "source_validation_csv": str(args.validation_csv.resolve()),
+        "source_validation_csvs": [
+            str(path.resolve()) for path in args.validation_csv
+        ],
         "policy": {
             "golden_record": (
                 "one human-confirmed NUMBER crop per identifier; prefer CLEAR "

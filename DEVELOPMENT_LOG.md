@@ -1357,3 +1357,108 @@ Conclusion:
 - the next experiment should measure whether structured vehicle/rider metadata
   improves ranking for the unresolved cases without overriding contradictory
   race-number evidence.
+
+## 2026-09-04 — Combined-Set Registry Pooling Was Unsafe
+
+The confirmed-registry experiment was extended to accept multiple validation
+CSVs without copying or moving photographs. The 311-row earlier validation set
+and the 71-row resolution set initially treated each number as if it had one
+canonical visual identity and produced:
+
+```text
+validation rows:             382
+confirmed registry identities: 51
+later-sighting query crops:  151
+query identities:             37
+self-matches:                  0
+```
+
+The larger result did not preserve the apparent safety of the 14-query pilot:
+
+```text
+correct identity ranked first: 45/151
+correct identity in top three:  54/151
+
+threshold  accepted  errors  precision
+0.90          44      15       65.9%
+0.92          20       3       85.0%
+0.95           3       0      100.0%
+```
+
+The earlier photo collection had been assembled from several source folders,
+identified by `_1`, `_2`, `_3`, and unsuffixed filename groups. Pooling those
+groups also exposed an invalid assumption in the experiment: a race number is
+not a unique motorcycle/rider identity. Multiple distinct motorcycles may
+legitimately share one number, even within the same event. One canonical visual
+reference per number therefore cannot represent all valid appearances. Race
+numbers may also be reused across events, and one reference remains
+viewpoint-sensitive even when the physical motorcycle is the same.
+
+Conclusion:
+
+- more photographs are not automatically more valid identity evidence;
+- every registry must have an explicit event boundary;
+- each race-number string must support multiple motorcycle/rider variants;
+- each variant should support multiple confirmed viewpoint references;
+- cross-event records must not be pooled solely because their race-number
+  strings match;
+- the reported ranking evaluated same-number retrieval, not unique physical
+  identity recognition;
+- before spending Qwen calls on metadata, test multiple independently
+  confirmed variants and viewpoints per number inside a known event or batch;
+- DINO similarity alone must remain suggestion evidence, not an automatic
+  assignment rule.
+
+## 2026-09-04 — Number-Blind Visual Metadata Pilot
+
+A metadata-only Qwen experiment was created for event-registry variants. The
+human race-number label is retained only for later scoring and is never placed
+in the prompt. Source crops are copied non-destructively to a maximum dimension
+of 1024 pixels. The profile records motorcycle colors/patterns, rider leathers,
+helmet appearance, number-plate background, view, and occlusion without
+transcribing the number.
+
+The first prompt was overly restrictive. On eight crops for numbers `10`,
+`69`, and `957`, only two profiles contained at least three useful visual
+signals:
+
+```text
+useful profiles: 2/8
+model time:      52.86s
+API errors:       0
+```
+
+Visual inspection showed that an empty result included a sharp, full-frame
+white/red/black motorcycle and rider. The failure was therefore the prompt,
+not insufficient image detail. The instruction was narrowed to prohibit race-
+number transcription while explicitly requiring every obvious color and
+pattern.
+
+The revised prompt produced:
+
+```text
+useful profiles: 8/8
+model time:      38.02s
+API errors:       0
+```
+
+Repeated `10` profiles consistently described a white motorcycle with red and
+black accents. Repeated `957` profiles consistently emphasized orange/purple
+motorcycle and rider colors, although the blurrier sighting contained fewer
+attributes.
+
+The two human-confirmed `69` crops visibly depict different motorcycles and
+riders sharing the same number. Qwen described one as predominantly
+black/white/red and the other as blue/white/red. This confirms that the event
+registry must support multiple visual variants beneath one race-number string.
+
+Conclusion:
+
+- the revised number-blind metadata prompt is useful enough for a broader
+  experiment;
+- metadata calls remain expensive at about 4.75 seconds per crop and should be
+  concentrated on golden variants and unresolved queries;
+- metadata is supporting evidence and requires normalization plus human-
+  validated matching tests before it can affect routing;
+- race-number records must contain multiple variants rather than one canonical
+  profile.

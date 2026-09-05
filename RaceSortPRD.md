@@ -191,6 +191,10 @@ absolute sharpness < 150
 ### FR-6: Candidate Resolution
 
 - Qwen candidates must be compared with known confirmed identities when independent evidence exists.
+- A race number is a non-unique string label and must not be used as a unique motorcycle or rider key.
+- An event registry must support multiple motorcycle/rider variants for the same race number.
+- Each variant may store multiple confirmed viewpoint references and structured metadata.
+- A mismatch with one variant must not reject a candidate until the other confirmed variants for that number have been considered.
 - A candidate crop must never be used as its own DINO reference.
 - Missing reference evidence must not be treated as conflicting evidence.
 - Current resolution states are:
@@ -212,6 +216,7 @@ AND best independent DINO similarity >= 0.90
 ### FR-7: Photo-Level Assignment
 
 - One photograph may be associated with multiple race numbers.
+- Multiple distinct motorcycles may share the same race number and must sort to the same race-number destination.
 - Only `CONFIRMED` and `CORROBORATED` identifiers may enter automatic photo assignments.
 - Candidate or review states must not silently enter confirmed assignments.
 - Duplicate identifiers within a photograph must be collapsed without converting identifiers to numbers.
