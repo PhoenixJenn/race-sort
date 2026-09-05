@@ -1542,3 +1542,26 @@ failed checks:  0
 
 The warnings were the known Qwen verification-call and human-review-workload
 variation. No safety regression was observed.
+
+## 2026-09-04 — Incremental Refactor: Detection Module
+
+The third behavior-preserving extraction moved detector-box geometry and the
+opt-in merged-motorcycle recovery policy into `racesort/detection.py`. The six
+validated geometric thresholds remain grouped and visible in
+`test_pipeline.py` through an immutable `MergedBoxCriteria` value.
+
+Eight new tests cover:
+
+- non-negative box area;
+- intersection, containment, and IoU calculations;
+- safe handling of zero-area boxes;
+- unchanged baseline behavior while recovery is disabled;
+- no split for non-motorcycle classes;
+- replacement of one valid merged parent with two children;
+- rejection of unbalanced child pairs;
+- rejection of children without enough horizontal separation.
+
+All 22 identifier, quality, and detection unit tests passed. Python compilation
+and the existing output regression checker passed with zero failures and the
+same two known Qwen-variation warnings. `test_pipeline.py` decreased from 2,934
+to 2,782 lines without changing thresholds, inference, routing, or outputs.
