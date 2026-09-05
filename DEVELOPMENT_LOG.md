@@ -1303,3 +1303,57 @@ Conclusion:
   necessary for safe promotion;
 - do not change the main pipeline default until the configurable resize path
   passes the established regression suite.
+
+## 2026-09-04 — Human-Confirmed Registry DINO Pilot
+
+A read-only experiment simulated the proposed checkpoint between a fast first
+pass and a registry-assisted second pass. From the 50-photo resolution dataset,
+the experiment selected one human-confirmed golden crop per race-number string,
+preferring `CLEAR` readability and then the sharpest crop. Every additional
+sighting was compared against all confirmed registry identities.
+
+The dataset contained:
+
+```text
+confirmed registry identities: 33
+identities with later sightings: 12
+later-sighting query crops:      14
+self-matches:                     0
+```
+
+DINOv2 Small completed the local CPU run in 2.92 seconds. Ranking results were:
+
+```text
+correct identity ranked first: 10/14
+correct identity in top three:  11/14
+```
+
+Threshold behavior for the top-ranked suggestion was:
+
+```text
+threshold  accepted  errors  precision
+0.75          14       4       71.4%
+0.80          13       3       76.9%
+0.85          11       1       90.9%
+0.90           9       0      100.0%
+0.92           7       0      100.0%
+0.95           3       0      100.0%
+```
+
+The four incorrect top-ranked results were later sightings of `69`, `10`,
+`10`, and `957`. Their top similarities were all below `0.90`. A correct `45`
+match scored `0.8978`, demonstrating the expected coverage tradeoff near the
+threshold.
+
+Conclusion:
+
+- a human-confirmed first-pass registry can provide useful, extremely cheap
+  suggestions for later sightings;
+- the existing provisional `0.90` threshold separated all observed correct
+  and incorrect top matches in this small pilot;
+- 14 queries are not enough to declare automatic promotion safe;
+- lower-scoring and viewpoint-difficult crops need additional OCR, metadata,
+  multiple-reference, or human evidence;
+- the next experiment should measure whether structured vehicle/rider metadata
+  improves ranking for the unresolved cases without overriding contradictory
+  race-number evidence.
