@@ -1462,3 +1462,24 @@ Conclusion:
   validated matching tests before it can affect routing;
 - race-number records must contain multiple variants rather than one canonical
   profile.
+
+## 2026-09-04 — Incremental Refactor: Identifier Module
+
+The first behavior-preserving extraction from the 3,012-line
+`test_pipeline.py` moved race-number normalization into
+`racesort/identifiers.py`. The pipeline now imports the shared helper instead
+of defining it inline. Older experiment scripts retain their local copies so
+their historical behavior is not silently changed.
+
+Six focused unit tests verify:
+
+- `0` is valid;
+- `00` and `007` preserve leading zeros;
+- numeric and alphanumeric identifiers remain strings;
+- lowercase input is normalized to uppercase;
+- missing, `UNKNOWN`, overlong, and invalid-character inputs are rejected.
+
+Python compilation and the existing pipeline-output regression checker passed
+with zero failures. The checker reported the two already-observed operational
+warnings for Qwen call-count and review-workload variation. No inference,
+threshold, routing, or output-schema behavior changed.

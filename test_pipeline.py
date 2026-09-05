@@ -3,7 +3,6 @@ import csv
 import hashlib
 import json
 import os
-import re
 import time
 
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -25,6 +24,8 @@ from transformers import (
     DetrImageProcessor,
     DetrForObjectDetection,
 )
+
+from racesort.identifiers import normalize_number
 
 
 # ============================================================
@@ -547,45 +548,6 @@ def resolve_merged_vehicle_boxes(detections):
                 resolved_ids.add(id(child))
 
     return resolved
-
-
-def normalize_number(value):
-    """
-    Race numbers are opaque string identifiers.
-
-    Examples:
-
-        "007"  -> "007"
-        54     -> "54"
-        "866"  -> "866"
-        "54A"  -> "54A"
-        "A12"  -> "A12"
-
-    Leading zeros are preserved.
-    """
-
-    if value is None:
-        return None
-
-    value = (
-        str(value)
-        .strip()
-        .upper()
-    )
-
-    if not value:
-        return None
-
-    if value == "UNKNOWN":
-        return None
-
-    if not re.fullmatch(
-        r"[A-Z0-9]{1,6}",
-        value,
-    ):
-        return None
-
-    return value
 
 
 def measure_sharpness(image_path):
