@@ -9,7 +9,6 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 import ollama
 import torch
-import torch.nn.functional as F
 from rapidocr import RapidOCR
 from PIL import (
     Image,
@@ -38,6 +37,11 @@ from racesort.prompts import (
     get_profile_prompt,
 )
 from racesort.qwen import QwenClient, QwenResponseCache
+from racesort.visual_matching import (
+    cosine_similarity_score,
+    create_dino_embedding,
+    resolve_dino_device,
+)
 
 
 # ============================================================
@@ -231,60 +235,6 @@ def direct_qwen_read(crop_path):
         crop_path,
         DIRECT_NUMBER_PROMPT,
     )
-
-
-def resolve_dino_device():
-    """Choose CUDA, Apple MPS, or CPU without platform forks."""
-
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-
-    if torch.backends.mps.is_available():
-        return torch.device("mps")
-
-    return torch.device("cpu")
-
-
-def create_dino_embedding(
-    image_path,
-    processor,
-    model,
-    device,
-    cache,
-):
-    """Create and cache one normalized DINO embedding."""
-
-    image_path = Path(image_path)
-    cache_key = str(image_path.resolve())
-
-    if cache_key in cache:
-        return cache[cache_key]
-
-    with Image.open(image_path) as image:
-        image = image.convert("RGB")
-
-        inputs = processor(
-            images=image,
-            return_tensors="pt",
-        )
-
-    inputs = {
-        key: value.to(device)
-        for key, value in inputs.items()
-    }
-
-    with torch.no_grad():
-        outputs = model(**inputs)
-
-    embedding = F.normalize(
-        outputs.last_hidden_state[:, 0, :],
-        p=2,
-        dim=1,
-    ).cpu()
-
-    cache[cache_key] = embedding
-
-    return embedding
 
 
 def ask_qwen_for_profile(
@@ -1799,10 +1749,10 @@ for (
                 dino_embedding_cache,
             )
 
-            score = F.cosine_similarity(
+            score = cosine_similarity_score(
                 candidate_embedding,
                 reference_embedding,
-            ).item()
+            )
 
             similarities.append(
                 (score, reference_path)

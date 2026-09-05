@@ -1644,3 +1644,17 @@ corrupt-cache misses, one-call miss-to-hit behavior, and uncached JSON-format
 forwarding. All 44 unit tests passed. Python compilation and the existing
 regression checker passed with 94 checks, the same two known Qwen-variation
 warnings, and zero failures.
+
+## 2026-09-04 — Incremental Refactor: DINO Visual Matching
+
+The seventh behavior-preserving extraction moved DINOv2 device selection,
+normalized CLS embedding creation, in-memory embedding reuse, and cosine
+similarity scoring into `racesort/visual_matching.py`. Model loading, candidate
+selection, the 0.90 corroboration threshold, and routing dispositions remain in
+the working pipeline and were not changed.
+
+Five model-free tests cover CUDA-first device selection, Apple MPS fallback,
+portable CPU fallback, RGB input conversion, normalized embeddings, cache
+reuse, and scalar cosine scoring. All 49 unit tests passed. Python compilation
+and the existing regression checker passed with 94 checks, the same two known
+Qwen-variation warnings, and zero failures.
