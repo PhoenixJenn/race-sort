@@ -1247,3 +1247,59 @@ Conclusion:
 - do not integrate automatic promotion from this benchmark;
 - prioritize an input-resolution benchmark because image preprocessing may
   reduce the cost of every fresh Qwen call rather than a small subset.
+
+## 2026-09-04 — Qwen Input-Resolution Benchmark
+
+Fifty previously unseen photographs were kept outside Git and processed with
+DETR only. The detector produced 71 non-destructive motorcycle crops. Human
+review labeled all 71 crops:
+
+```text
+NUMBER: 47
+NONE:   16
+UNSURE:  8
+```
+
+A first balanced stress test compared maximum crop dimensions of `1500`,
+`1024`, and `768` pixels on 12 crops. It included the lowest-sharpness readable
+crops that supported all three sizes and the sharpest confirmed-numberless
+crops:
+
+```text
+1500: 91.7% accuracy, 5.61s median
+1024: 100.0% accuracy, 3.27s median
+ 768: 100.0% accuracy, 3.22s median
+```
+
+The only stress-test error occurred at 1500 pixels: human label `181` was read
+as `187`. All five numberless cases returned `UNKNOWN` at every size. Because
+768 saved only about 0.05 seconds per call compared with 1024 while discarding
+more detail, 1024 was selected for broader validation.
+
+The complete 1024-pixel validation then evaluated every definitive human
+answer:
+
+```text
+cases:                 63
+exact readable number: 45/47
+numberless UNKNOWN:     15/16
+overall accuracy:       95.2%
+median call time:       3.25s
+```
+
+Observed errors:
+
+- `GGBM1130` vehicle 1: `00` read as `99`;
+- `GGBM1138` vehicle 1: `128` read as `T28`;
+- `GGBM1159` vehicle 1: confirmed numberless crop hallucinated as `91`.
+
+Conclusion:
+
+- 1024 pixels is the provisional performance choice for Qwen candidate reads;
+- it reduced mean call time from about 5.64 seconds at 1500 to about 3.30
+  seconds in the balanced comparison;
+- a Qwen read at 1024 must not automatically confirm an identity by itself;
+- independent OCR, registry, DINO, metadata, or human evidence remains
+  necessary for safe promotion;
+- do not change the main pipeline default until the configurable resize path
+  passes the established regression suite.

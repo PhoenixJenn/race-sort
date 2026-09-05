@@ -264,6 +264,10 @@ def main():
         }
         record = {
             "photo": image_path.name,
+            "detections": [
+                serializable_detection(detection)
+                for detection in detections
+            ],
             "baseline_motorcycles": sum(
                 detection["score"] >= BASELINE_THRESHOLD
                 for detection in detections

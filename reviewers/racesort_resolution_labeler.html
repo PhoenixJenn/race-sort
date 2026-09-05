@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RaceSort Resolution Labeler</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #090d11; color: #e8edf2; }
+    header { position: sticky; top: 0; z-index: 2; padding: 10px 16px; background: #0d1218; border-bottom: 1px solid #303945; }
+    h1 { display: inline; margin: 0 14px 0 0; font-size: 20px; }
+    button, input, textarea { font: inherit; }
+    button, .folder { padding: 8px 12px; border: 1px solid #3c4855; border-radius: 7px; background: #17202a; color: #eef3f7; cursor: pointer; }
+    button:hover, button.active { border-color: #57d68d; background: #20382d; }
+    .folder input { display: none; }
+    #status { margin-left: 12px; color: #aeb9c5; }
+    main { padding: 12px 16px 20px; }
+    .meta { display: flex; gap: 18px; margin-bottom: 8px; color: #aeb9c5; font-size: 13px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(340px, .65fr); gap: 12px; align-items: start; }
+    .images { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    figure { margin: 0; padding: 7px; background: #111820; border: 1px solid #29343f; border-radius: 9px; }
+    figcaption { margin-bottom: 5px; color: #aeb9c5; font-size: 12px; }
+    img { display: block; width: 100%; height: min(67vh, 720px); object-fit: contain; background: #050708; }
+    .panel { position: sticky; top: 65px; padding: 14px; background: #111820; border: 1px solid #303b47; border-radius: 9px; }
+    .panel h2 { margin: 0 0 10px; font-size: 17px; }
+    label.text { display: block; margin: 12px 0 5px; color: #b9c4cf; font-size: 13px; }
+    #number { width: 100%; padding: 11px; border: 1px solid #465361; border-radius: 7px; background: #080c10; color: white; font-size: 22px; text-transform: uppercase; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+    .primary { background: #17462d; border-color: #3ecf7e; }
+    .none { border-color: #e0b64b; }
+    .unsure { border-color: #cf7483; }
+    textarea { width: 100%; min-height: 68px; padding: 8px; border: 1px solid #465361; border-radius: 7px; background: #080c10; color: white; resize: vertical; }
+    .saved { margin-top: 12px; padding: 9px; border-radius: 7px; background: #0b1015; color: #aeb9c5; min-height: 38px; }
+    .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 12px; }
+    .nav button:last-child { grid-column: 1 / -1; }
+    .hint { margin: 8px 0 0; color: #8996a3; font-size: 12px; line-height: 1.35; }
+    @media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .panel { position: static; } .images { grid-template-columns: 1fr; } img { height: 48vh; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>RaceSort Resolution Labels</h1>
+    <label class="folder">Load label folder<input id="folder" type="file" webkitdirectory multiple></label>
+    <button id="export" disabled>Export labels CSV</button>
+    <span id="status">Load resolution-label-output/labels</span>
+  </header>
+  <main id="empty">Choose the generated <strong>labels</strong> folder. No Qwen data is used on this page.</main>
+  <main id="review" hidden>
+    <div class="meta"><strong id="position"></strong><span id="photoName"></span><span id="detector"></span></div>
+    <div class="layout">
+      <div class="images">
+        <figure><figcaption>Detected motorcycle crop</figcaption><img id="crop" alt="Motorcycle crop"></figure>
+        <figure><figcaption>Whole-photo context</figcaption><img id="photo" alt="Whole photograph context"></figure>
+      </div>
+      <section class="panel">
+        <h2>Ground truth</h2>
+        <label class="text" for="number">Exact visible race number</label>
+        <input id="number" autocomplete="off" maxlength="6" placeholder="007, 0, A12">
+        <div class="buttons">
+          <button id="saveNumber" class="primary">Save number</button>
+          <button id="none" class="none">NONE visible</button>
+          <button id="unsure" class="unsure">UNSURE</button>
+        </div>
+        <label class="text">Readability</label>
+        <div class="buttons" id="readability">
+          <button data-value="CLEAR">Clear</button>
+          <button data-value="BLURRY_BUT_READABLE">Blurry but readable</button>
+          <button data-value="NOT_READABLE">Not readable</button>
+          <button data-value="NO_NUMBER_VISIBLE">No number visible</button>
+        </div>
+        <label class="text" for="note">Optional note</label>
+        <textarea id="note" placeholder="Occluded digit, multiple bikes, wrong crop, etc."></textarea>
+        <div id="saved" class="saved">Not labeled</div>
+        <p class="hint">Numbers are saved as text. Leading zeros and identifier 0 are preserved. Use NONE only when no race number is visible; use UNSURE when evidence is ambiguous.</p>
+        <div class="nav">
+          <button id="previous">Previous</button><button id="next">Next</button>
+          <button id="nextUnreviewed">Next unlabeled</button>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const STORE = "racesort-resolution-labels-v1";
+    let records = [], files = new Map(), index = 0;
+    let labels = JSON.parse(localStorage.getItem(STORE) || "{}");
+    const $ = id => document.getElementById(id);
+
+    function key(record) { return `${record.photo}::${record.vehicle}`; }
+    function persist() { localStorage.setItem(STORE, JSON.stringify(labels)); updateStatus(); }
+    function fileFor(path) { return files.get(path) || files.get(path.split("/").pop()); }
+    function setImage(element, path) {
+      const file = fileFor(path);
+      element.src = file ? URL.createObjectURL(file) : "";
+    }
+    function updateStatus() {
+      const done = records.filter(record => labels[key(record)]?.answer_type).length;
+      $("status").textContent = `${done}/${records.length} labeled`;
+    }
+    function render() {
+      const record = records[index], label = labels[key(record)] || {};
+      $("position").textContent = `${index + 1} of ${records.length}`;
+      $("photoName").textContent = `${record.photo} · motorcycle ${record.vehicle}`;
+      $("detector").textContent = `${record.detection_source} · ${(record.detr_confidence * 100).toFixed(1)}%`;
+      setImage($("crop"), record.crop); setImage($("photo"), record.photo_proxy);
+      $("number").value = label.ground_truth || ""; $("note").value = label.note || "";
+      document.querySelectorAll("#readability button").forEach(button => button.classList.toggle("active", button.dataset.value === label.number_readability));
+      $("saved").textContent = label.answer_type ? `Saved: ${label.answer_type}${label.ground_truth ? ` · ${label.ground_truth}` : ""}${label.number_readability ? ` · ${label.number_readability}` : ""}` : "Not labeled";
+      updateStatus();
+    }
+    function update(patch) { labels[key(records[index])] = {...(labels[key(records[index])] || {}), ...patch, note: $("note").value}; persist(); render(); }
+    function move(delta) { index = Math.max(0, Math.min(records.length - 1, index + delta)); render(); }
+
+    $("folder").addEventListener("change", async event => {
+      files.clear();
+      for (const file of event.target.files) { files.set(file.webkitRelativePath.replace(/^[^/]+\//, ""), file); files.set(file.name, file); }
+      const manifestFile = [...event.target.files].find(file => file.name === "manifest.json");
+      if (!manifestFile) return alert("manifest.json was not found in that folder.");
+      records = JSON.parse(await manifestFile.text()).records; index = 0;
+      $("empty").hidden = true; $("review").hidden = false; $("export").disabled = false; render();
+    });
+    $("saveNumber").onclick = () => {
+      const value = $("number").value.trim().toUpperCase();
+      if (!/^[A-Z0-9]{1,6}$/.test(value)) return alert("Enter 1–6 letters or digits.");
+      update({answer_type: "NUMBER", ground_truth: value});
+    };
+    $("none").onclick = () => update({answer_type: "NONE", ground_truth: "", number_readability: "NO_NUMBER_VISIBLE"});
+    $("unsure").onclick = () => update({answer_type: "UNSURE", ground_truth: "", number_readability: "NOT_READABLE"});
+    $("readability").onclick = event => { if (event.target.dataset.value) update({number_readability: event.target.dataset.value}); };
+    $("note").addEventListener("change", () => update({}));
+    $("previous").onclick = () => move(-1); $("next").onclick = () => move(1);
+    $("nextUnreviewed").onclick = () => {
+      for (let offset = 1; offset <= records.length; offset++) { const candidate = (index + offset) % records.length; if (!labels[key(records[candidate])]?.answer_type) { index = candidate; render(); return; } }
+      alert("Every crop has an answer.");
+    };
+    $("export").onclick = () => {
+      const fields = ["photo","vehicle","crop","detection_source","detr_confidence","answer_type","ground_truth","number_readability","note"];
+      const quote = value => `"${String(value ?? "").replaceAll('"','""')}"`;
+      const rows = records.map(record => { const label = labels[key(record)] || {}; return fields.map(field => quote(label[field] ?? record[field] ?? "")).join(","); });
+      const blob = new Blob([[fields.join(","), ...rows].join("\n")], {type:"text/csv"});
+      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "racesort-resolution-labels.csv"; link.click();
+    };
+  </script>
+</body>
+</html>
