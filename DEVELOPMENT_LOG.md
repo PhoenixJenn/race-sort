@@ -1658,3 +1658,18 @@ portable CPU fallback, RGB input conversion, normalized embeddings, cache
 reuse, and scalar cosine scoring. All 49 unit tests passed. Python compilation
 and the existing regression checker passed with 94 checks, the same two known
 Qwen-variation warnings, and zero failures.
+
+## 2026-09-04 — End-of-Session Handoff
+
+The configuration, prompt, Qwen client/cache, and DINO visual-matching
+extractions were completed and pushed to GitHub through commit `4b13aa9`.
+The working tree was clean after that push. The verified baseline is 49 passing
+unit tests plus 94 passing stored-output regression checks, two known
+nondeterministic Qwen/workload warnings, and zero failures.
+
+`PROJECT_CONTEXT.md` and `START-HERE.md` were refreshed to remove stale claims
+that consolidation and the initial configuration layer were still pending.
+The next safe code change is OCR candidate normalization/filtering extraction,
+followed by a separately tested routing-policy extraction. Do not begin a new
+accuracy or concurrency experiment until those structural changes preserve the
+current regression behavior.

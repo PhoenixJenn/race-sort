@@ -186,9 +186,9 @@ Potential configurable items include:
 - maximum simultaneous vision-model calls;
 - input/output/review paths.
 
-This configuration layer is planned but **is not the immediate next task**.
-
-First consolidate and validate the current pipeline.
+The first validated configuration layer now exists in `racesort/config.py`.
+Complete hardware profiles and Windows tuning remain future work; they are not
+the immediate next task.
 
 ---
 
@@ -1192,6 +1192,34 @@ Once those five things happen, the project has effectively been handed off.
 
 The correct next sentence for a fresh RaceSort development session is:
 
-> **We have finished the exploratory component experiments. Now consolidate the validated routing, filtering, OCR/Qwen, and independent-DINO candidate-resolution behavior into the main RaceSort pipeline, incrementally, and validate it against the existing 19-photo / 33-crop regression dataset before optimizing or reorganizing the application.**
+> **The working pipeline is consolidated and protected by 49 unit tests plus
+> the 19-photo / 33-crop regression checker. Continue the small-module refactor
+> by extracting OCR candidate normalization and filtering, without changing
+> routing behavior; then isolate and test routing policy before implementing
+> the first-cycle confirmation and multi-variant event registry.**
 
 That is where development should resume.
+
+Current Git handoff as of 2026-09-04:
+
+```text
+branch:          master
+latest code:     4b13aa9 Extract DINO visual matching
+remote state:    local master matches origin/master
+working tree:    clean before this documentation-only handoff update
+unit tests:      49 passed
+regression:      94 passed, 2 known warnings, 0 failures
+main pipeline:   test_pipeline.py, 2,299 lines
+```
+
+The recent behavior-preserving modules are:
+
+```text
+racesort/config.py
+racesort/identifiers.py
+racesort/quality.py
+racesort/detection.py
+racesort/prompts.py
+racesort/qwen.py
+racesort/visual_matching.py
+```

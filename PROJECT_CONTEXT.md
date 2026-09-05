@@ -697,47 +697,60 @@ Validated experimentally:
 - candidate-resolution states
 - dynamic human-review page
 - timing/performance instrumentation
+- consolidated end-to-end routing in `test_pipeline.py`
+- validated environment-based pipeline configuration
+- cross-platform DINO device selection: CUDA, Apple MPS, then CPU
+- isolated prompt policy, Qwen client/cache, quality, identifier, detection,
+  and DINO visual-matching modules
+- code-only Git/GitHub workflow with photographs and generated outputs ignored
 
 Not yet finalized:
 
-- consolidated production pipeline
 - final automatic candidate-promotion policy
 - larger-scale accuracy benchmark
 - parallel processing strategy
-- hardware configuration layer
+- complete hardware profiles and Windows-specific performance tuning
 - Windows deployment
 - production export/copy workflow
 - polished application UI
 
+Current code organization:
+
+```text
+test_pipeline.py                 working end-to-end regression pipeline
+racesort/config.py               validated settings and event context
+racesort/identifiers.py          race-number string normalization
+racesort/quality.py              blur and non-primary filters
+racesort/detection.py            box geometry and merged-box recovery
+racesort/prompts.py              number and metadata prompt policy
+racesort/qwen.py                 Ollama/Qwen wrapper and response cache
+racesort/visual_matching.py      DINO device, embedding, and similarity helpers
+tests/                           model-free unit tests for extracted modules
+regression/check_pipeline_results.py
+                                 established output regression checker
+```
+
+As of 2026-09-04, all 49 unit tests pass. The established 19-photo / 33-crop
+regression reports 94 passed checks, two known nondeterministic Qwen/workload
+warnings, and zero failures. `test_pipeline.py` is 2,299 lines, down from 2,934
+before the incremental extractions. The latest pushed code commit is `4b13aa9`
+(`Extract DINO visual matching`), and local `master` matches `origin/master`.
+
 ## Immediate Next Milestone
 
-Stop adding isolated recognition components and consolidate the validated routing behavior into the main RaceSort pipeline.
+Continue the incremental consolidation by extracting OCR candidate normalization
+and filtering from `test_pipeline.py` into a small model-free module. Preserve
+candidate order, leading zeros, valid `0`, alphanumeric safety, the requirement
+that a candidate contain at least one digit, and exact existing routing
+behavior. Add focused unit tests, run the complete unit suite and existing
+regression checker, then commit the change locally before proceeding.
 
-The next end-to-end benchmark should run the same 19-photo / 33-crop regression dataset and report in one place:
+After OCR extraction:
 
-- photos processed
-- vehicles detected
-- FILTERED_NON_PRIMARY
-- FILTERED_TOO_BLURRY
-- OCR candidate / empty counts
-- Qwen verification calls
-- Qwen direct calls
-- CONFIRMED
-- CORROBORATED
-- KNOWN_NUMBER_REVIEW
-- CONFLICTING / REVIEW
-- total human-review workload
-- DETR time
-- OCR time
-- Qwen time
-- DINO time
-- total elapsed time
-- projected 1,000-photo processing time
-
-After the consolidated pipeline is correct and regression-tested:
-
-1. Benchmark safe parallelism.
-2. Build configuration/hardware profiles.
-3. Test clean startup from a fresh Mac terminal/environment.
-4. Test deployment on the photographer's Windows/i7/GTX 1050 Ti/48 GB machine.
-5. Verify fully offline event operation.
+1. Extract routing decisions into a thoroughly tested policy module.
+2. Run a fresh full regression pipeline when an actual inference run is
+   warranted, rather than relying only on stored-output checks.
+3. Implement the first-cycle human confirmation and multi-variant event
+   registry, allowing distinct motorcycles to share one race number.
+4. Resume accuracy/performance evaluation on the larger labeled dataset.
+5. Complete hardware profiles, clean-start/offline checks, and Windows testing.
