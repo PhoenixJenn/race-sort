@@ -1,6 +1,5 @@
 from pathlib import Path
 import csv
-import hashlib
 import json
 import os
 import time
@@ -38,6 +37,7 @@ from racesort.prompts import (
     build_ocr_verification_prompt,
     get_profile_prompt,
 )
+from racesort.qwen import QwenClient, QwenResponseCache
 
 
 # ============================================================
@@ -67,6 +67,16 @@ MAX_BLUR_SHARPNESS = CONFIG.max_blur_sharpness
 DINO_CORROBORATION_THRESHOLD = CONFIG.dino_corroboration_threshold
 SUPPORTED_EXTENSIONS = CONFIG.supported_extensions
 RACE_TYPE = CONFIG.race_type
+
+QWEN_CLIENT = QwenClient(
+    model=VISION_MODEL,
+    chat=ollama.chat,
+    cache=QwenResponseCache(
+        directory=QWEN_CACHE_DIR,
+        schema_version=QWEN_CACHE_SCHEMA_VERSION,
+        enabled=ENABLE_QWEN_CACHE,
+    ),
+)
 
 
 # ============================================================
@@ -105,85 +115,6 @@ def get_detection_class():
     return "car"
 
 
-def hash_file(path):
-    """Return a SHA-256 digest without changing the source file."""
-
-    digest = hashlib.sha256()
-
-    with path.open("rb") as source_file:
-        for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
-            digest.update(chunk)
-
-    return digest.hexdigest()
-
-
-def qwen_cache_key(crop_path, prompt):
-    """Key a response by every input that can affect Qwen output."""
-
-    identity = {
-        "schema_version": QWEN_CACHE_SCHEMA_VERSION,
-        "model": VISION_MODEL,
-        "prompt": prompt,
-        "crop_sha256": hash_file(crop_path),
-    }
-    encoded = json.dumps(
-        identity,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-
-    return hashlib.sha256(encoded).hexdigest(), identity
-
-
-def load_qwen_cache(crop_path, prompt):
-    """Return a validated cached raw response, or None on any miss."""
-
-    if not ENABLE_QWEN_CACHE:
-        return None, None, None
-
-    cache_key, identity = qwen_cache_key(crop_path, prompt)
-    cache_path = QWEN_CACHE_DIR / f"{cache_key}.json"
-
-    if not cache_path.exists():
-        return None, cache_path, identity
-
-    try:
-        with cache_path.open(encoding="utf-8") as cache_file:
-            cached = json.load(cache_file)
-    except (OSError, json.JSONDecodeError):
-        return None, cache_path, identity
-
-    if (
-        cached.get("identity") != identity
-        or not isinstance(cached.get("raw_response"), str)
-    ):
-        return None, cache_path, identity
-
-    return cached["raw_response"], cache_path, identity
-
-
-def save_qwen_cache(cache_path, identity, raw_response):
-    """Atomically save one successful raw Qwen response."""
-
-    if cache_path is None:
-        return
-
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = cache_path.with_suffix(".tmp")
-
-    with temporary_path.open("w", encoding="utf-8") as cache_file:
-        json.dump(
-            {
-                "identity": identity,
-                "raw_response": raw_response,
-            },
-            cache_file,
-            indent=2,
-        )
-
-    temporary_path.replace(cache_path)
-
-
 def read_fast_number(
     crop_path,
     prompt,
@@ -200,57 +131,31 @@ def read_fast_number(
     global qwen_cache_hits
     global qwen_cache_misses
 
-    cached_raw, cache_path, cache_identity = load_qwen_cache(
+    result = QWEN_CLIENT.ask(
         crop_path,
         prompt,
+        use_cache=True,
     )
 
-    if cached_raw is not None:
+    if result.cache_hit:
         qwen_cache_hits += 1
-        return normalize_number(cached_raw), 0.0, cached_raw
+        return (
+            normalize_number(result.raw_response),
+            result.elapsed_seconds,
+            result.raw_response,
+        )
 
-    if ENABLE_QWEN_CACHE:
+    if result.cache_miss:
         qwen_cache_misses += 1
 
-    start = time.perf_counter()
-
-    response = ollama.chat(
-        model=VISION_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": prompt,
-                "images": [
-                    str(crop_path)
-                ],
-            }
-        ],
-    )
-
-    elapsed = (
-        time.perf_counter()
-        - start
-    )
-
-    raw_response = (
-        response["message"]["content"]
-        .strip()
-    )
-
-    save_qwen_cache(
-        cache_path,
-        cache_identity,
-        raw_response,
-    )
-
     number = normalize_number(
-        raw_response
+        result.raw_response
     )
 
     return (
         number,
-        elapsed,
-        raw_response,
+        result.elapsed_seconds,
+        result.raw_response,
     )
 
 
@@ -391,32 +296,12 @@ def ask_qwen_for_profile(
     Phase 3B intentionally uses this only when needed.
     """
 
-    start = time.perf_counter()
-
-    response = ollama.chat(
-        model=VISION_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content":
-                    get_profile_prompt(RACE_TYPE),
-                "images": [
-                    str(crop_path)
-                ],
-            }
-        ],
-        format="json",
+    result = QWEN_CLIENT.ask(
+        crop_path,
+        get_profile_prompt(RACE_TYPE),
+        json_format=True,
     )
-
-    elapsed = (
-        time.perf_counter()
-        - start
-    )
-
-    raw_content = (
-        response["message"]["content"]
-        .strip()
-    )
+    raw_content = result.raw_response
 
     try:
         profile = json.loads(
@@ -433,13 +318,13 @@ def ask_qwen_for_profile(
         return (
             None,
             raw_content,
-            elapsed,
+            result.elapsed_seconds,
         )
 
     return (
         profile,
         raw_content,
-        elapsed,
+        result.elapsed_seconds,
     )
 
 

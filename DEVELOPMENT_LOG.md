@@ -1625,3 +1625,22 @@ alphanumeric identifiers, OCR candidate constraints, vehicle-specific metadata
 schemas, and rejection of unsupported race types. All 39 unit tests passed.
 Python compilation and the existing regression checker passed with 94 checks,
 the same two known Qwen-variation warnings, and zero failures.
+
+## 2026-09-04 — Incremental Refactor: Qwen Client and Cache
+
+The sixth behavior-preserving extraction moved the low-level Ollama chat call
+and optional raw-response cache into `racesort/qwen.py`. `QwenClient` now owns
+message construction, response timing, whitespace cleanup, and JSON-format
+forwarding. `QwenResponseCache` retains the existing content-safe identity:
+schema version, model name, complete prompt text, and SHA-256 image digest.
+
+Fast number calls continue to use the optional cache and report the same hit
+and miss counters. Rich metadata calls use the shared client but remain
+uncached, preserving the working pipeline behavior. The model-call function is
+injected, allowing tests to run offline with a fake Qwen response.
+
+Five new tests cover content hashing, string-preserving cache round trips,
+corrupt-cache misses, one-call miss-to-hit behavior, and uncached JSON-format
+forwarding. All 44 unit tests passed. Python compilation and the existing
+regression checker passed with 94 checks, the same two known Qwen-variation
+warnings, and zero failures.
