@@ -1483,3 +1483,24 @@ Python compilation and the existing pipeline-output regression checker passed
 with zero failures. The checker reported the two already-observed operational
 warnings for Qwen call-count and review-workload variation. No inference,
 threshold, routing, or output-schema behavior changed.
+
+## 2026-09-04 — Incremental Refactor: Quality Module
+
+The second behavior-preserving extraction moved the validated sharpness
+measurement, conservative non-primary filter, and absolute blur filter into
+`racesort/quality.py`. Threshold values remain explicit configuration in
+`test_pipeline.py` and are passed into the shared decision functions.
+
+Eight new quality tests cover:
+
+- the multi-vehicle requirement for non-primary filtering;
+- strict relative-area and relative-sharpness threshold boundaries;
+- strict absolute-blur threshold behavior;
+- edge-rich imagery scoring higher than a uniform image.
+
+Together with the identifier tests, all 14 unit tests passed. Recomputing the
+quality score for all 33 existing regression crops produced exact matches with
+their stored pipeline results; the maximum absolute difference was `0.0`.
+Python compilation and the existing output regression checker also passed with
+zero failures and the same two known Qwen-variation warnings. No threshold,
+routing, inference, or output-schema behavior changed.

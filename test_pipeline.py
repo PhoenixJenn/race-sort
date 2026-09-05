@@ -15,8 +15,6 @@ from rapidocr import RapidOCR
 from PIL import (
     Image,
     ImageDraw,
-    ImageFilter,
-    ImageStat,
 )
 from transformers import (
     AutoImageProcessor,
@@ -26,6 +24,11 @@ from transformers import (
 )
 
 from racesort.identifiers import normalize_number
+from racesort.quality import (
+    measure_sharpness,
+    should_filter_non_primary,
+    should_filter_too_blurry,
+)
 
 
 # ============================================================
@@ -548,52 +551,6 @@ def resolve_merged_vehicle_boxes(detections):
                 resolved_ids.add(id(child))
 
     return resolved
-
-
-def measure_sharpness(image_path):
-    """
-    Return the same edge-variance sharpness score used by
-    the validated primary-filter experiment.
-    """
-
-    image = Image.open(
-        image_path
-    ).convert("L")
-
-    image.thumbnail(
-        (800, 800)
-    )
-
-    edges = image.filter(
-        ImageFilter.FIND_EDGES
-    )
-
-    stats = ImageStat.Stat(
-        edges
-    )
-
-    return stats.var[0]
-
-
-def should_filter_non_primary(
-    vehicles_in_photo,
-    relative_area,
-    relative_sharpness,
-):
-    """Apply the validated conservative non-primary rule."""
-
-    return (
-        vehicles_in_photo > 1
-        and relative_area < MAX_FILTER_AREA
-        and relative_sharpness
-        < MAX_FILTER_RELATIVE_SHARPNESS
-    )
-
-
-def should_filter_too_blurry(sharpness):
-    """Apply the validated conservative blur rule."""
-
-    return sharpness < MAX_BLUR_SHARPNESS
 
 
 def get_profile_prompt():
@@ -1589,13 +1546,16 @@ for photo_number, image_path in enumerate(
             len(vehicles),
             vehicle["relative_area"],
             vehicle["relative_sharpness"],
+            MAX_FILTER_AREA,
+            MAX_FILTER_RELATIVE_SHARPNESS,
         ):
 
             decision = "FILTERED_NON_PRIMARY"
             filtered_non_primary_count += 1
 
         elif should_filter_too_blurry(
-            vehicle["sharpness"]
+            vehicle["sharpness"],
+            MAX_BLUR_SHARPNESS,
         ):
 
             decision = "FILTERED_TOO_BLURRY"
