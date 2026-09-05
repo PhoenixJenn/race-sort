@@ -754,3 +754,20 @@ After OCR extraction:
    registry, allowing distinct motorcycles to share one race number.
 4. Resume accuracy/performance evaluation on the larger labeled dataset.
 5. Complete hardware profiles, clean-start/offline checks, and Windows testing.
+
+## Engineering Documentation TODO
+
+Add a short plain-language module docstring at the top of every actively
+maintained `.py` file so a learner can quickly understand what the file does.
+Each header should explain:
+
+- the file's purpose in RaceSort;
+- whether it is working application code, a test, or an experiment;
+- its important inputs and outputs;
+- the main functions/classes a reader should start with;
+- any safety constraint that is especially relevant to that file.
+
+Keep these headers concise and update them when responsibilities change. Do an
+inventory before editing so checkpoint copies, generated files, and obsolete
+experiments are not accidentally presented as current production code. This is
+a readability task, not authorization for a large refactor.

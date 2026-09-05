@@ -1673,3 +1673,9 @@ The next safe code change is OCR candidate normalization/filtering extraction,
 followed by a separately tested routing-policy extraction. Do not begin a new
 accuracy or concurrency experiment until those structural changes preserve the
 current regression behavior.
+
+A learner-focused documentation TODO was also added: place a concise,
+plain-language module docstring at the top of each actively maintained Python
+file describing its purpose, status, inputs, outputs, and reading entry points.
+Inventory current code versus experiments first; do not combine this task with
+a large refactor.
