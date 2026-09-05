@@ -1610,3 +1610,18 @@ cycles, race types, thresholds, and merged-box geometry. All 34 unit tests
 passed. Python compilation and the existing output regression checker passed
 with 94 checks, the same two known Qwen-variation warnings, and zero failures.
 `test_pipeline.py` decreased from 2,782 to 2,731 lines.
+
+## 2026-09-04 — Incremental Refactor: Prompt Module
+
+The fifth behavior-preserving extraction moved all Qwen prompt text and prompt
+selection into `racesort/prompts.py`. This includes the direct number prompt,
+the two historical fast-number prompts, constrained OCR-candidate verification,
+and the motorcycle and car metadata schemas. The working pipeline now imports
+the prompt policy instead of embedding or constructing it inline.
+
+A syntax-tree comparison confirmed that all five static prompt strings match
+the pre-refactor version exactly. Five focused tests protect leading zeros,
+alphanumeric identifiers, OCR candidate constraints, vehicle-specific metadata
+schemas, and rejection of unsupported race types. All 39 unit tests passed.
+Python compilation and the existing regression checker passed with 94 checks,
+the same two known Qwen-variation warnings, and zero failures.
