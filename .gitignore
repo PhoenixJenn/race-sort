@@ -8,3 +8,4 @@ test-output/
 temp/
 working/output/
 working/review/
+.racesort-cache/

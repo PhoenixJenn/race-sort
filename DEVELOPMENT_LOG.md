@@ -1150,3 +1150,49 @@ Implementation status:
 The next validation step is a full-dataset opt-in run followed by comparison
 of detection counts, review workload, and human-validated false splits before
 considering whether to enable the behavior by default.
+
+## 2026-09-04 — Opt-In Content-Addressed Qwen Cache Validated
+
+The 158-photo merged-box run took `1421.74s` (`23m 42s`). Qwen direct
+recognition accounted for `1197.85s`, or approximately 84% of the complete
+runtime. The pipeline made 244 direct calls with a median of `5.03s` and a
+mean of `4.91s`; the cost was steady per-crop inference rather than a single
+startup delay.
+
+An opt-in persistent cache was added around raw Qwen responses. A cache key
+includes:
+
+- SHA-256 of the generated crop contents;
+- the exact prompt;
+- the configured Qwen model name;
+- a cache schema version.
+
+The cached raw response still passes through the existing identifier
+normalization and routing logic. Failed API calls are not cached, writes are
+atomic, and `.racesort-cache/` is excluded from Git. Caching is disabled by
+default and enabled with:
+
+```text
+RACESORT_ENABLE_QWEN_CACHE=1
+```
+
+A two-pass `GGBM0082.JPG` validation produced:
+
+```text
+Cold run
+cache hits:       0
+cache misses:     2
+Qwen time:        14.25s
+total time:       16.08s
+
+Warm run
+cache hits:       2
+cache misses:     0
+Qwen time:        0.00s
+total time:       1.97s
+```
+
+The cold and warm runs produced identical recognition evidence, race-number
+strings, and routing decisions. The cache improves repeated experiments and
+restartability; it does not reduce first-pass inference time on previously
+unseen crops.

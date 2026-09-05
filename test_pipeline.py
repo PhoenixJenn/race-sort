@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+import hashlib
 import json
 import os
 import re
@@ -43,6 +44,21 @@ OUTPUT_DIR = Path(
         "test-output",
     )
 )
+
+ENABLE_QWEN_CACHE = (
+    os.environ.get(
+        "RACESORT_ENABLE_QWEN_CACHE",
+        "0",
+    ).strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+QWEN_CACHE_DIR = Path(
+    os.environ.get(
+        "RACESORT_QWEN_CACHE_DIR",
+        ".racesort-cache/qwen",
+    )
+)
+QWEN_CACHE_SCHEMA_VERSION = 1
 
 DETECTOR_MODEL = "facebook/detr-resnet-50"
 VISION_MODEL = "qwen3-vl:4b-instruct"
@@ -632,6 +648,85 @@ def get_detection_class():
     return "car"
 
 
+def hash_file(path):
+    """Return a SHA-256 digest without changing the source file."""
+
+    digest = hashlib.sha256()
+
+    with path.open("rb") as source_file:
+        for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def qwen_cache_key(crop_path, prompt):
+    """Key a response by every input that can affect Qwen output."""
+
+    identity = {
+        "schema_version": QWEN_CACHE_SCHEMA_VERSION,
+        "model": VISION_MODEL,
+        "prompt": prompt,
+        "crop_sha256": hash_file(crop_path),
+    }
+    encoded = json.dumps(
+        identity,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    return hashlib.sha256(encoded).hexdigest(), identity
+
+
+def load_qwen_cache(crop_path, prompt):
+    """Return a validated cached raw response, or None on any miss."""
+
+    if not ENABLE_QWEN_CACHE:
+        return None, None, None
+
+    cache_key, identity = qwen_cache_key(crop_path, prompt)
+    cache_path = QWEN_CACHE_DIR / f"{cache_key}.json"
+
+    if not cache_path.exists():
+        return None, cache_path, identity
+
+    try:
+        with cache_path.open(encoding="utf-8") as cache_file:
+            cached = json.load(cache_file)
+    except (OSError, json.JSONDecodeError):
+        return None, cache_path, identity
+
+    if (
+        cached.get("identity") != identity
+        or not isinstance(cached.get("raw_response"), str)
+    ):
+        return None, cache_path, identity
+
+    return cached["raw_response"], cache_path, identity
+
+
+def save_qwen_cache(cache_path, identity, raw_response):
+    """Atomically save one successful raw Qwen response."""
+
+    if cache_path is None:
+        return
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = cache_path.with_suffix(".tmp")
+
+    with temporary_path.open("w", encoding="utf-8") as cache_file:
+        json.dump(
+            {
+                "identity": identity,
+                "raw_response": raw_response,
+            },
+            cache_file,
+            indent=2,
+        )
+
+    temporary_path.replace(cache_path)
+
+
 def read_fast_number(
     crop_path,
     prompt,
@@ -644,6 +739,21 @@ def read_fast_number(
         elapsed_seconds
         raw_response
     """
+
+    global qwen_cache_hits
+    global qwen_cache_misses
+
+    cached_raw, cache_path, cache_identity = load_qwen_cache(
+        crop_path,
+        prompt,
+    )
+
+    if cached_raw is not None:
+        qwen_cache_hits += 1
+        return normalize_number(cached_raw), 0.0, cached_raw
+
+    if ENABLE_QWEN_CACHE:
+        qwen_cache_misses += 1
 
     start = time.perf_counter()
 
@@ -668,6 +778,12 @@ def read_fast_number(
     raw_response = (
         response["message"]["content"]
         .strip()
+    )
+
+    save_qwen_cache(
+        cache_path,
+        cache_identity,
+        raw_response,
     )
 
     number = normalize_number(
@@ -1074,6 +1190,14 @@ print(
     + ("enabled" if ENABLE_MERGED_BOX_SPLIT else "disabled")
 )
 
+print(
+    "Qwen response cache: "
+    + ("enabled" if ENABLE_QWEN_CACHE else "disabled")
+)
+
+if ENABLE_QWEN_CACHE:
+    print(f"Qwen cache directory: {QWEN_CACHE_DIR}")
+
 print()
 
 
@@ -1137,6 +1261,8 @@ ocr_empty_count = 0
 qwen_verify_calls = 0
 qwen_direct_calls = 0
 qwen_candidate_count = 0
+qwen_cache_hits = 0
+qwen_cache_misses = 0
 
 filtered_non_primary_count = 0
 filtered_too_blurry_count = 0
@@ -2632,6 +2758,15 @@ run_summary = {
         "vision": VISION_MODEL,
         "dino": DINO_MODEL,
     },
+    "cache": {
+        "qwen_enabled": ENABLE_QWEN_CACHE,
+        "qwen_directory": (
+            str(QWEN_CACHE_DIR)
+            if ENABLE_QWEN_CACHE
+            else None
+        ),
+        "schema_version": QWEN_CACHE_SCHEMA_VERSION,
+    },
     "thresholds": {
         "detection": DETECTION_THRESHOLD,
         "merged_box_split_enabled": ENABLE_MERGED_BOX_SPLIT,
@@ -2664,6 +2799,8 @@ run_summary = {
         "ocr_empty_cases": ocr_empty_count,
         "qwen_verify_calls": qwen_verify_calls,
         "qwen_direct_calls": qwen_direct_calls,
+        "qwen_cache_hits": qwen_cache_hits,
+        "qwen_cache_misses": qwen_cache_misses,
     },
     "timing_seconds": {
         "detr_total": total_detr_time,
@@ -2785,6 +2922,16 @@ print(
 print(
     f"Qwen DIRECT calls: "
     f"{qwen_direct_calls}"
+)
+
+print(
+    f"Qwen cache hits: "
+    f"{qwen_cache_hits}"
+)
+
+print(
+    f"Qwen cache misses: "
+    f"{qwen_cache_misses}"
 )
 
 print()
