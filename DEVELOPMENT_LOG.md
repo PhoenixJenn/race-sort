@@ -1196,3 +1196,54 @@ The cold and warm runs produced identical recognition evidence, race-number
 strings, and routing decisions. The cache improves repeated experiments and
 restartability; it does not reduce first-pass inference time on previously
 unseen crops.
+
+## 2026-09-04 — Golden DINO Plus OCR Pre-Qwen Benchmark
+
+A read-only benchmark evaluated whether a human-validated golden-record
+registry could safely bypass direct Qwen reads on fresh crops. The experiment
+used the latest 311-row human-validation export and selected the sharpest
+qualifying reference for each race-number string:
+
+```text
+golden identities:              27
+non-golden processable queries: 216
+```
+
+Golden references required human `CORRECT`, `CLEAR`, `SELLABLE`, a
+`PRIMARY`/`SECONDARY` role, sharpness of at least `500`, and a non-empty
+string identifier. Golden crops were excluded from their own evaluation.
+
+Allowing DINO to agree with any identifier in a multi-candidate OCR result was
+unsafe at the existing `0.90` similarity threshold:
+
+```text
+proposed Qwen skips: 16
+human-evaluated:     16
+incorrect:            1
+precision:          93.8%
+```
+
+The error was `GGBM0066.JPG` vehicle 4. Human ground truth was `706`, OCR
+contained `P7`, `706`, and `866`, and DINO incorrectly selected `866` at
+similarity `0.9112`.
+
+Requiring OCR to contain exactly one candidate removed all evaluated errors:
+
+```text
+threshold:            0.90
+proposed Qwen skips:     12
+human-evaluated:         12
+incorrect:                0
+precision:           100.0%
+```
+
+Conclusion:
+
+- multi-candidate OCR/DINO agreement must not bypass Qwen;
+- single-candidate OCR plus DINO at `0.90` is promising but is supported by
+  only 12 evaluated cases;
+- the route would avoid only about 5.6% of calls in this dataset, roughly one
+  minute at the measured Qwen rate;
+- do not integrate automatic promotion from this benchmark;
+- prioritize an input-resolution benchmark because image preprocessing may
+  reduce the cost of every fresh Qwen call rather than a small subset.
