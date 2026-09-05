@@ -24,8 +24,8 @@ from transformers import (
 )
 
 from racesort.identifiers import normalize_number
+from racesort.config import RaceSortConfig
 from racesort.detection import (
-    MergedBoxCriteria,
     resolve_merged_vehicle_boxes,
 )
 from racesort.quality import (
@@ -39,94 +39,29 @@ from racesort.quality import (
 # CONFIGURATION
 # ============================================================
 
-INPUT_DIR = Path(
-    os.environ.get(
-        "RACESORT_INPUT_DIR",
-        "test-photos",
-    )
-)
+CONFIG = RaceSortConfig.from_environ()
 
-OUTPUT_DIR = Path(
-    os.environ.get(
-        "RACESORT_OUTPUT_DIR",
-        "test-output",
-    )
-)
-
-ENABLE_QWEN_CACHE = (
-    os.environ.get(
-        "RACESORT_ENABLE_QWEN_CACHE",
-        "0",
-    ).strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-QWEN_CACHE_DIR = Path(
-    os.environ.get(
-        "RACESORT_QWEN_CACHE_DIR",
-        ".racesort-cache/qwen",
-    )
-)
-QWEN_CACHE_SCHEMA_VERSION = 1
-
-DETECTOR_MODEL = "facebook/detr-resnet-50"
-VISION_MODEL = "qwen3-vl:4b-instruct"
-DINO_MODEL = "facebook/dinov2-small"
-
-DETECTION_THRESHOLD = 0.70
-MAX_CROP_SIZE = 1500
-
-# Experimental, opt-in recovery for rare DETR boxes that contain two
-# distinct motorcycles. The normal 0.70 behavior remains the default.
-ENABLE_MERGED_BOX_SPLIT = (
-    os.environ.get(
-        "RACESORT_ENABLE_MERGED_BOX_SPLIT",
-        "0",
-    ).strip().lower()
-    in {"1", "true", "yes", "on"}
-)
-MERGED_BOX_CHILD_THRESHOLD = 0.275
-MERGED_BOX_CRITERIA = MergedBoxCriteria(
-    minimum_child_containment=0.80,
-    minimum_child_area_ratio=0.12,
-    maximum_child_area_ratio=0.80,
-    maximum_child_iou=0.55,
-    minimum_child_area_balance=0.50,
-    minimum_horizontal_separation=0.33,
-)
-
-# Human-validated conservative quality filters.
-MAX_FILTER_AREA = 0.20
-MAX_FILTER_RELATIVE_SHARPNESS = 0.45
-MAX_BLUR_SHARPNESS = 150.0
-DINO_CORROBORATION_THRESHOLD = 0.90
-
-SUPPORTED_EXTENSIONS = {
-    ".jpg",
-    ".jpeg",
-    ".png",
-}
-
-
-# ------------------------------------------------------------
-# EVENT TYPE
-#
-# Set this before processing an event.
-#
-# Allowed:
-#   "motorcycle"
-#   "car"
-# ------------------------------------------------------------
-
-RACE_TYPE = "motorcycle"
-
-if RACE_TYPE not in {
-    "motorcycle",
-    "car",
-}:
-    raise ValueError(
-        "RACE_TYPE must be either "
-        "'motorcycle' or 'car'"
-    )
+# Temporary compatibility aliases keep the working pipeline body unchanged
+# while modules are extracted one regression-tested step at a time.
+INPUT_DIR = CONFIG.input_dir
+OUTPUT_DIR = CONFIG.output_dir
+ENABLE_QWEN_CACHE = CONFIG.enable_qwen_cache
+QWEN_CACHE_DIR = CONFIG.qwen_cache_dir
+QWEN_CACHE_SCHEMA_VERSION = CONFIG.qwen_cache_schema_version
+DETECTOR_MODEL = CONFIG.detector_model
+VISION_MODEL = CONFIG.vision_model
+DINO_MODEL = CONFIG.dino_model
+DETECTION_THRESHOLD = CONFIG.detection_threshold
+MAX_CROP_SIZE = CONFIG.max_crop_size
+ENABLE_MERGED_BOX_SPLIT = CONFIG.enable_merged_box_split
+MERGED_BOX_CHILD_THRESHOLD = CONFIG.merged_box_child_threshold
+MERGED_BOX_CRITERIA = CONFIG.merged_box_criteria
+MAX_FILTER_AREA = CONFIG.max_filter_area
+MAX_FILTER_RELATIVE_SHARPNESS = CONFIG.max_filter_relative_sharpness
+MAX_BLUR_SHARPNESS = CONFIG.max_blur_sharpness
+DINO_CORROBORATION_THRESHOLD = CONFIG.dino_corroboration_threshold
+SUPPORTED_EXTENSIONS = CONFIG.supported_extensions
+RACE_TYPE = CONFIG.race_type
 
 
 # ============================================================
@@ -2517,12 +2452,19 @@ projected_1000_photo_minutes = (
     / 60
 )
 
+projected_4000_photo_minutes = (
+    average_photo_time
+    * 4000
+    / 60
+)
+
 
 # ============================================================
 # SAVE MACHINE-READABLE RUN SUMMARY
 # ============================================================
 
 run_summary = {
+    "event": CONFIG.event_context(),
     "models": {
         "detector": DETECTOR_MODEL,
         "vision": VISION_MODEL,
@@ -2585,6 +2527,8 @@ run_summary = {
     "projection": {
         "photos": 1000,
         "minutes": projected_1000_photo_minutes,
+        "event_day_photos": 4000,
+        "event_day_minutes": projected_4000_photo_minutes,
     },
 }
 
@@ -2761,6 +2705,11 @@ if image_paths:
     print(
         f"Projected 1,000-photo time: "
         f"{projected_1000_photo_minutes:.1f} minutes"
+    )
+
+    print(
+        f"Projected 4,000-photo event-day time: "
+        f"{projected_4000_photo_minutes:.1f} minutes"
     )
 
 

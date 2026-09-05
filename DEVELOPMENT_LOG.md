@@ -1590,3 +1590,23 @@ When media is available throughout the day, the production target is useful,
 sales-ready sorting by 3pm. Unresolved cases should be prioritized for human
 attention before the sales window rather than presented as one undifferentiated
 queue after all processing finishes.
+
+## 2026-09-04 — Incremental Refactor: Configuration Module
+
+The fourth behavior-preserving extraction moved pipeline settings into the
+immutable `RaceSortConfig` class in `racesort/config.py`. `test_pipeline.py`
+temporarily exposes compatibility aliases so its inference and routing body can
+remain unchanged while the application is split into smaller modules.
+
+The module preserves the current models and thresholds as defaults, validates
+environment overrides, and adds optional event context fields for event ID,
+date, group, cycle, and session. These fields remain separate from race-number
+identifiers. Run summaries now include that event context and a 4,000-photo
+event-day time projection alongside the existing 1,000-photo projection.
+
+Twelve configuration tests cover defaults, string and path handling, boolean
+parsing, event normalization, and rejection of invalid paths, dates, groups,
+cycles, race types, thresholds, and merged-box geometry. All 34 unit tests
+passed. Python compilation and the existing output regression checker passed
+with 94 checks, the same two known Qwen-variation warnings, and zero failures.
+`test_pipeline.py` decreased from 2,782 to 2,731 lines.
