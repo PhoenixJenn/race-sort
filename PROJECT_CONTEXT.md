@@ -4,9 +4,35 @@
 
 RaceSort is a local AI-assisted workflow for a motorsports event photographer. It is intended to identify race numbers on motorcycles and cars, associate each photograph with the applicable vehicle numbers, and drastically reduce the amount of manual sorting required at race events.
 
-A photographer may shoot roughly 1,000 photographs per hour for about 8 hours per day. The existing workflow requires an assistant to inspect photographs and manually type visible race numbers. A photograph containing multiple useful numbered vehicles must be associated with every applicable number.
+A typical event day produces roughly 4,000 photographs over about five hours
+of shooting. The existing workflow requires an assistant to inspect
+photographs and manually type visible race numbers. A photograph containing
+multiple useful numbered vehicles must be associated with every applicable
+number.
 
 RaceSort is not intended to make originals disposable or to eliminate human judgment. The goal is to automate high-confidence work, cheaply discard unusable/non-primary crops, and route uncertain cases into an efficient human-review workflow.
+
+## Event-Day Operating Model
+
+A normal motorcycle event day has:
+
+- three rider groups: A, B, and C;
+- approximately 30 motorcycles per group;
+- 20-minute group sessions;
+- five cycles through all three groups;
+- 15 total sessions over approximately five hours;
+- roughly 4,000 photographs;
+- normally 75–100 unique motorcycles, with up to 150 maximum.
+
+The first complete A/B/C cycle is the natural first-pass checkpoint because it
+is the earliest point likely to expose the full day's participant population.
+RaceSort should support pausing after that cycle for a human to confirm proposed
+numbers and visual variants. The remaining four cycles can then use the
+confirmed event registry for cheaper ranking and review suggestions.
+
+Event, group, cycle, and session are contextual evidence and must be stored
+separately from the race-number string. Group membership may narrow candidates
+but must not be treated as identity proof or encoded into the race number.
 
 ## Non-Negotiable Requirements
 

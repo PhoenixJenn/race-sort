@@ -1504,3 +1504,41 @@ their stored pipeline results; the maximum absolute difference was `0.0`.
 Python compilation and the existing output regression checker also passed with
 zero failures and the same two known Qwen-variation warnings. No threshold,
 routing, inference, or output-schema behavior changed.
+
+## 2026-09-04 — Event-Day Operating Model Clarified
+
+The photographer supplied the expected production cadence:
+
+```text
+groups:                         A, B, C
+motorcycles per group:          approximately 30
+session length:                 20 minutes
+cycles per group:               5
+total sessions per day:         15
+shooting duration:              approximately 5 hours
+photographs per day:            approximately 4,000
+unique motorcycles normally:    75–100
+unique motorcycles maximum:     150
+```
+
+The first complete A/B/C cycle is now the proposed human-confirmation
+checkpoint. It should provide initial coverage of all three rider groups before
+the remaining four cycles are processed with registry assistance.
+
+Event, group, cycle, and session must remain separate context fields. Group can
+narrow suggestions but cannot prove identity, particularly because multiple
+motorcycles may share a race-number string. Performance planning must report a
+4,000-photo event-day projection in addition to the existing 1,000-photo
+projection.
+
+The established 19-photo regression output remained valid after the identifier
+and quality refactors:
+
+```text
+passed checks: 94
+warnings:       2
+failed checks:  0
+```
+
+The warnings were the known Qwen verification-call and human-review-workload
+variation. No safety regression was observed.

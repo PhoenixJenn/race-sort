@@ -23,8 +23,10 @@ Original photographs are permanent source assets and must never be destructively
 
 A motorsports photographer may capture approximately:
 
-- 1,000 photographs per hour;
-- eight hours of photographs per event day;
+- 4,000 photographs over approximately five shooting hours per event day;
+- three groups of approximately 30 motorcycles each;
+- five 20-minute cycles per group, producing 15 sessions per day;
+- 75–100 unique motorcycles normally and up to 150 maximum;
 - multiple useful vehicles in a single photograph.
 
 The current manual workflow requires an assistant to inspect each image and enter every visible race number. This creates a large, time-sensitive sorting workload at events.
@@ -82,10 +84,12 @@ Needs incremental, testable Python changes; explicit setup and test commands; re
 4. RaceSort detects sortable vehicles and creates separate analysis crops or proxies.
 5. RaceSort filters conservative non-primary and too-blurry crops.
 6. RaceSort routes remaining crops through OCR and vision-model recognition.
-7. RaceSort resolves candidates using independently confirmed identity evidence.
-8. RaceSort automatically assigns supported identifiers.
-9. RaceSort presents unresolved cases for human review.
-10. RaceSort exports or copies deliverables without altering source originals.
+7. After the first complete A/B/C cycle, RaceSort presents proposed numbers and visual variants for human confirmation.
+8. RaceSort builds an event-scoped, multi-variant registry from confirmed evidence.
+9. RaceSort resolves later-session candidates using independently confirmed evidence.
+10. RaceSort automatically assigns supported identifiers.
+11. RaceSort presents unresolved cases for human review.
+12. RaceSort exports or copies deliverables without altering source originals.
 
 ## 7. Current Recognition Architecture
 
@@ -289,6 +293,7 @@ AND best independent DINO similarity >= 0.90
   - DETR, OCR, Qwen, DINO, and total timing;
   - average seconds per photograph;
   - projected 1,000-photo duration.
+- Production planning must also report projected 4,000-photo event-day duration.
 - A machine-readable `run-summary.json` must preserve these metrics for comparison.
 - Performance changes must be compared across repeated warm runs because local model startup and runtime state can cause large timing variation.
 - Accuracy and assignment safety take priority over throughput.
@@ -402,6 +407,8 @@ The recognition core is ready to support production workflow development when:
 ### Milestone 4: Event Workflow
 
 - Implement safe ingest and event-state management.
+- Record event, group, cycle, and session context separately from race numbers.
+- Support a human-confirmation checkpoint after the first complete A/B/C cycle.
 - Implement persistent identity registry behavior.
 - Provide an efficient human-review workflow.
 - Implement non-destructive export/copy organization.
