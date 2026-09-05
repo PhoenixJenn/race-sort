@@ -3,8 +3,41 @@
 __pycache__/
 *.py[cod]
 
-# Generated working output. Originals and regression baselines remain trackable.
+# Local configuration and secrets. Keep a sanitized .env.example if needed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Race/event photographs and other raster image data.
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.webp
+*.heic
+
+# Downloaded model weights and large packaged artifacts.
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.gguf
+*.zip
+*.7z
+*.tar
+*.tar.gz
+
+# Photographs stay local and must never be committed.
+test-photos/
+resolution-test-photos/
+
+# Generated working output.
 test-output/
+mega-output*/
+resolution-label-output/
 temp/
 working/output/
 working/review/
