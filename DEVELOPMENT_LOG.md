@@ -1781,3 +1781,24 @@ with 94 checks, the same two known warnings, and zero failures. The size review
 found `racesort/registry.py` at 385 lines and its tests at 255 lines; both remain
 cohesive and below the 1,000-line review threshold. The next step is a model-free
 first-cycle confirmation importer with explicit per-row outcomes.
+
+## 2026-09-19 — Transactional First-Cycle Confirmation Importer
+
+`racesort/confirmation_import.py` now converts an explicit CSV contract into
+validated `HumanConfirmation` records and applies them to a cloned registry.
+Every data row receives an `ACCEPTED`, `CORRECTED`, `REJECTED`, `DUPLICATE`, or
+`INVALID` outcome with its original CSV row number. Invalid rows make the batch
+unsafe to save; the original in-memory and on-disk registries remain unchanged.
+
+The command `python -m scripts.import_confirmations` loads or creates an event
+registry, prints every row outcome and a summary, and atomically saves only a
+safe batch. Tests protect leading-zero, valid-zero, and alphanumeric strings;
+all five outcomes; new/existing variants; reference conflicts; malformed JSON;
+missing headers; transactional isolation; and a complete CSV → save → load
+round trip.
+
+All 96 unit tests passed. Compilation, CLI help, and the stored regression
+checker passed with 94 checks, the same two known warnings, and zero failures.
+The size review found the importer at 205 lines, its CLI at 62 lines, and its
+tests at 184 lines. The next step is reviewer export integration against this
+stable contract.

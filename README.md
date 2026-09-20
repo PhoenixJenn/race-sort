@@ -16,7 +16,7 @@ It is being split into small tested modules incrementally, without changing the
 validated routing behavior.
 
 ```text
-Unit tests: 89 passed
+Unit tests: 96 passed
 Regression: 94 passed, 2 known variability warnings, 0 failures
 Dataset:    19 photographs, 33 detected vehicle crops
 ```
@@ -63,6 +63,7 @@ DEVELOPMENT_LOG.md              experiment and implementation history
 test_pipeline.py                working end-to-end regression pipeline
 racesort/config.py              settings and event context
 racesort/candidate_resolution.py independent-DINO disposition safety policy
+racesort/confirmation_import.py transactional first-cycle CSV importer
 racesort/identifiers.py         race-number string normalization
 racesort/ocr.py                 RapidOCR candidate normalization/filtering
 racesort/quality.py             blur and non-primary filters
@@ -75,6 +76,7 @@ racesort/visual_matching.py     DINO device, embedding, and similarity helpers
 tests/                          model-free unit tests
 regression/                     stored-output regression checker and fixtures
 reviewers/                      local human-review HTML tools
+scripts/import_confirmations.py confirmation import command
 experiments/                    isolated benchmarks; not production entry points
 ```
 
@@ -146,6 +148,32 @@ Prefer focused modules that are easy to read and test. Approaching 1,000 lines
 is a signal to assess extraction opportunities, but never justify a broad
 rewrite solely to meet a line-count target.
 
-The event-scoped registry now has validated, atomic JSON save/load support. The
-next step is a small model-free importer that converts first-cycle human
-confirmation records into registry updates and reports rejected/invalid rows.
+## First-Cycle Confirmation Import
+
+The importer expects these CSV columns:
+
+```text
+source_photo,crop,number_action,proposed_number,corrected_number,
+variant_action,variant_id,group,cycle,session_id,metadata_json,
+variant_metadata_json
+```
+
+Actions are `ACCEPT`, `CORRECT`, or `REJECT`. Non-rejected rows use
+`MATCH_EXISTING` or `CREATE_NEW` for `variant_action`. Metadata cells are blank
+or JSON objects. Every row reports `ACCEPTED`, `CORRECTED`, `REJECTED`,
+`DUPLICATE`, or `INVALID`; any invalid row prevents saving.
+
+Create the first registry:
+
+```bash
+python -m scripts.import_confirmations \
+  --csv first-cycle-confirmations.csv \
+  --registry output/event-registry.json \
+  --event-id track-day-2026-09-19 \
+  --event-date 2026-09-19 \
+  --race-type motorcycle
+```
+
+For later imports, omit event arguments because the saved registry already
+contains them. The next milestone is updating the reviewer to export this exact
+contract without requiring manual CSV construction.

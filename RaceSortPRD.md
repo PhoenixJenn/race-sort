@@ -261,6 +261,12 @@ AND best independent DINO similarity >= 0.90
 - First-cycle confirmation must represent number acceptance, number correction,
   rejection, matching an existing variant, and creating a distinct new variant.
 - Rejection must not mutate the confirmed event registry.
+- Confirmation imports must report every row as accepted, corrected, rejected,
+  duplicate, or invalid; invalid rows must include an actionable message.
+- Imports must be transactional. Any invalid row must prevent saving the staged
+  registry, while leaving the last valid registry unchanged.
+- Duplicate confirmations for the same crop/variant must be safe and visible,
+  not silently create repeated references.
 
 ### FR-9: Evidence and Provenance
 
@@ -420,7 +426,7 @@ The recognition core is ready to support production workflow development when:
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
 - Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
   OCR candidate behavior have been extracted into tested modules.
-- The current baseline is 89 passing unit tests plus 94 passing regression
+- The current baseline is 96 passing unit tests plus 94 passing regression
   checks, two known Qwen-variability warnings, and zero failures.
 - Initial OCR/Qwen routing and independent-DINO candidate-disposition policies
   are now model-free and tested. Further extraction should accompany cohesive
@@ -450,7 +456,8 @@ The recognition core is ready to support production workflow development when:
 - Prioritize unresolved work and target sales-ready output by the 3pm sales window.
 - Implement persistent identity registry behavior. The model-free multi-variant
   registry, human-confirmation contract, and atomic JSON persistence are
-  complete; confirmation import and reviewer integration remain.
+  complete. Transactional CSV import is complete; reviewer export integration
+  remains.
 - Provide an efficient human-review workflow.
 - Implement non-destructive export/copy organization.
 

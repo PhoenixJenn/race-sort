@@ -719,6 +719,7 @@ Current code organization:
 ```text
 test_pipeline.py                 working end-to-end regression pipeline
 racesort/candidate_resolution.py independent-DINO disposition safety policy
+racesort/confirmation_import.py   transactional first-cycle CSV importer
 racesort/config.py               validated settings and event context
 racesort/identifiers.py          race-number string normalization
 racesort/ocr.py                  RapidOCR candidate normalization/filtering
@@ -734,7 +735,7 @@ regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-19, all 89 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 96 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
 warnings, and zero failures. `test_pipeline.py` is 2,186 lines, down from 2,934
 before the incremental extractions. The latest completed code milestone is the
@@ -742,16 +743,17 @@ OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Build a small, model-free importer that converts first-cycle human-confirmation
-records into `HumanConfirmation` objects and applies them to an `EventRegistry`.
-The importer must report accepted, corrected, rejected, duplicate, and invalid
-rows without silently discarding failures. It must validate the event context
-and preserve source photo/crop provenance. Use an explicit fixture format first;
-do not change the HTML reviewer until the importer contract is tested.
+Update the current reviewer incrementally so it can export the exact
+first-cycle confirmation CSV contract accepted by
+`racesort/confirmation_import.py`. Add variant controls only where required:
+accept/correct/reject number, match an existing variant, or create a new variant.
+Preserve the current compact labeling workflow and existing exports. Validate
+the produced CSV with an automated browser or fixture test before using it to
+write a real event registry.
 
-After import is protected:
+After reviewer export is protected:
 
-1. Connect the reviewer export to the importer incrementally.
+1. Import a small first-cycle fixture and inspect the saved registry together.
 2. Use the confirmed registry for later-cycle candidate suggestions.
 3. Run fresh inference only when integration requires new output.
 4. Resume larger-data accuracy/performance evaluation and platform work.
