@@ -24,6 +24,10 @@ from transformers import (
 from racesort.identifiers import normalize_number
 from racesort.ocr import extract_ocr_candidates
 from racesort.config import RaceSortConfig
+from racesort.candidate_resolution import (
+    independent_reference_paths,
+    resolve_candidate_disposition,
+)
 from racesort.detection import (
     resolve_merged_vehicle_boxes,
 )
@@ -1620,21 +1624,10 @@ for (
         "final_number"
     ]
 
-    reference_paths = []
-
-    for reference_path in confirmed_references.get(
-        candidate_number,
-        [],
-    ):
-
-        # A crop can never corroborate itself.
-        if (
-            reference_path.resolve()
-            == candidate_crop_path.resolve()
-        ):
-            continue
-
-        reference_paths.append(reference_path)
+    reference_paths = independent_reference_paths(
+        candidate_crop_path,
+        confirmed_references.get(candidate_number, []),
+    )
 
 
     similarities = []
@@ -1687,29 +1680,13 @@ for (
     )
 
 
-    if (
-        best_similarity is not None
-        and best_similarity
-        >= DINO_CORROBORATION_THRESHOLD
-    ):
-        disposition = "CORROBORATED"
-        reasons = [
-            "KNOWN_CONFIRMED_NUMBER",
-            "STRONG_INDEPENDENT_DINO_SUPPORT",
-        ]
-
-    elif reference_paths:
-        disposition = "KNOWN_NUMBER_REVIEW"
-        reasons = [
-            "KNOWN_CONFIRMED_NUMBER",
-            "DINO_BELOW_PROMOTION_THRESHOLD",
-        ]
-
-    else:
-        disposition = "UNSUPPORTED"
-        reasons = [
-            "NO_INDEPENDENT_CONFIRMED_REFERENCE",
-        ]
+    resolution = resolve_candidate_disposition(
+        best_similarity,
+        len(reference_paths),
+        DINO_CORROBORATION_THRESHOLD,
+    )
+    disposition = resolution.disposition
+    reasons = list(resolution.reasons)
 
 
     vehicle_result["decision"] = disposition

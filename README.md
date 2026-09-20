@@ -16,7 +16,7 @@ It is being split into small tested modules incrementally, without changing the
 validated routing behavior.
 
 ```text
-Unit tests: 62 passed
+Unit tests: 69 passed
 Regression: 94 passed, 2 known variability warnings, 0 failures
 Dataset:    19 photographs, 33 detected vehicle crops
 ```
@@ -62,6 +62,7 @@ RaceSortPRD.md                  product requirements and release guardrails
 DEVELOPMENT_LOG.md              experiment and implementation history
 test_pipeline.py                working end-to-end regression pipeline
 racesort/config.py              settings and event context
+racesort/candidate_resolution.py independent-DINO disposition safety policy
 racesort/identifiers.py         race-number string normalization
 racesort/ocr.py                 RapidOCR candidate normalization/filtering
 racesort/quality.py             blur and non-primary filters
@@ -144,7 +145,7 @@ Prefer focused modules that are easy to read and test. Approaching 1,000 lines
 is a signal to assess extraction opportunities, but never justify a broad
 rewrite solely to meet a line-count target.
 
-The immediate next structural milestone is extracting the independent-DINO
-candidate disposition policy (`CORROBORATED`, `KNOWN_NUMBER_REVIEW`, and
-`UNSUPPORTED`) from the pipeline. After that, RaceSort can proceed toward
-first-cycle human confirmation and the event-scoped multi-variant registry.
+The next product milestone is first-cycle human confirmation and an
+event-scoped multi-variant registry. The registry must allow several visually
+distinct motorcycles to share one race-number string and retain multiple
+confirmed viewpoint references for each variant.

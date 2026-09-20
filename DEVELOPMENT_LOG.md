@@ -1716,3 +1716,23 @@ The milestone size review found that extracted application modules range from
 lines. The PRD and README now require a size/cohesion review at every milestone
 and an explicit refactor assessment as actively maintained Python files
 approach 1,000 lines. This is a review trigger, not a mandate for risky rewrites.
+
+## 2026-09-19 — Incremental Refactor: DINO Candidate Disposition
+
+Self-reference exclusion and the independent-DINO candidate disposition table
+moved into the model-free `racesort/candidate_resolution.py` module. The policy
+preserves exact-threshold promotion at `0.90`, below-threshold known-number
+review, unsupported candidates without independent references, existing reason
+strings, and the rule that weak/missing evidence is not conflicting evidence.
+
+Seven tests cover self-match prevention, reference order, exact and
+just-below-threshold behavior, known references without a score, missing
+references, and non-conflicting weak evidence. All 69 unit tests passed.
+Compilation and the stored-output regression checker passed with 94 checks, the
+same two known warnings, and zero failures.
+
+The size review found `racesort/candidate_resolution.py` at 59 lines, all
+extracted application modules at 26–313 lines, the cohesive regression checker
+at 482 lines, and `test_pipeline.py` at 2,186 lines. The main pipeline remains
+the sole major outlier, but further extraction should now be tied to cohesive
+event-registry work rather than delaying that product milestone for cleanup.

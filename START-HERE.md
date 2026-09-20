@@ -1192,11 +1192,11 @@ Once those five things happen, the project has effectively been handed off.
 
 The correct next sentence for a fresh RaceSort development session is:
 
-> **The working pipeline is consolidated and protected by 62 unit tests plus
+> **The working pipeline is consolidated and protected by 69 unit tests plus
 > the 19-photo / 33-crop regression checker. Continue the small-module refactor
-> by isolating and testing independent-DINO candidate disposition policy,
-> without changing recognition behavior; then proceed toward
-> the first-cycle confirmation and multi-variant event registry.**
+> through the first-cycle confirmation and multi-variant event registry. Begin
+> with a small model-free registry contract and tests; do not treat a race
+> number as a unique motorcycle identity.**
 
 That is where development should resume.
 
@@ -1207,15 +1207,16 @@ branch:          master
 latest code:     OCR candidate normalization/filtering extraction
 remote state:    verify with git branch -vv at session start
 working tree:    verify with git status --short at session start
-unit tests:      62 passed
+unit tests:      69 passed
 regression:      94 passed, 2 known warnings, 0 failures
-main pipeline:   test_pipeline.py, 2,209 lines
+main pipeline:   test_pipeline.py, 2,186 lines
 ```
 
 The recent behavior-preserving modules are:
 
 ```text
 racesort/config.py
+racesort/candidate_resolution.py
 racesort/identifiers.py
 racesort/ocr.py
 racesort/quality.py

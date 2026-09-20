@@ -407,11 +407,11 @@ The recognition core is ready to support production workflow development when:
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
 - Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
   OCR candidate behavior have been extracted into tested modules.
-- The current baseline is 62 passing unit tests plus 94 passing regression
+- The current baseline is 69 passing unit tests plus 94 passing regression
   checks, two known Qwen-variability warnings, and zero failures.
-- Initial OCR/Qwen routing policy is now model-free and tested. Remaining
-  structural work includes candidate-disposition policy and continued removal
-  of obsolete experimental dependencies from the main script when safe.
+- Initial OCR/Qwen routing and independent-DINO candidate-disposition policies
+  are now model-free and tested. Further extraction should accompany cohesive
+  feature work rather than delay the first-cycle registry milestone.
 
 ### Milestone 2: Hardware-Agnostic Accuracy and Performance
 

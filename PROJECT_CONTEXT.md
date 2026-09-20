@@ -718,6 +718,7 @@ Current code organization:
 
 ```text
 test_pipeline.py                 working end-to-end regression pipeline
+racesort/candidate_resolution.py independent-DINO disposition safety policy
 racesort/config.py               validated settings and event context
 racesort/identifiers.py          race-number string normalization
 racesort/ocr.py                  RapidOCR candidate normalization/filtering
@@ -732,27 +733,30 @@ regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-19, all 62 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 69 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
-warnings, and zero failures. `test_pipeline.py` is 2,209 lines, down from 2,934
+warnings, and zero failures. `test_pipeline.py` is 2,186 lines, down from 2,934
 before the incremental extractions. The latest completed code milestone is the
 OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Extract the independent-DINO candidate disposition rules from
-`test_pipeline.py` into a thoroughly tested, model-free policy function.
-Preserve the current `CORROBORATED`, `KNOWN_NUMBER_REVIEW`, and `UNSUPPORTED`
-states, reason strings, `0.90` threshold semantics, and the rule that missing
-reference evidence is not conflicting evidence. Do not combine this with a new
-recognition experiment or threshold change.
+Design and implement the first-cycle human-confirmation data contract and
+event-scoped multi-variant registry incrementally. The registry must map a
+race-number string to multiple distinct motorcycle/rider variants, each with
+multiple confirmed reference views and supported metadata. Human confirmation
+must be able to accept, correct, reject, or distinguish variants without making
+the race number itself a unique identity key.
 
-After candidate-disposition extraction:
+Before changing the reviewer UI or launching new inference, begin with the
+smallest model-free registry representation and unit tests. Preserve originals,
+string identifiers, provenance, event/group/cycle/session separation, and the
+rule that one weak visual mismatch cannot reject every variant for a number.
 
-1. Run a fresh full regression pipeline when an actual inference run is
-   warranted, rather than relying only on stored-output checks.
-2. Implement the first-cycle human confirmation and multi-variant event
-   registry, allowing distinct motorcycles to share one race number.
+After the registry contract is protected:
+
+1. Connect first-cycle human confirmation to the registry incrementally.
+2. Run a fresh full regression pipeline when new inference output is warranted.
 3. Resume accuracy/performance evaluation on the larger labeled dataset.
 4. Complete hardware profiles, clean-start/offline checks, and Windows testing.
 
