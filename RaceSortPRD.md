@@ -217,6 +217,11 @@ absolute sharpness < 150
 - Each confirmed reference must retain source photo, crop, confirmation source,
   and available group/cycle/session provenance without modifying the source.
 - One crop must not be assigned to multiple registry variants.
+- Registry files must use a versioned schema and reject incompatible versions.
+- Saving a generated registry must be atomic: a failed write must not corrupt
+  or replace the last valid registry file.
+- Loading must validate event, number, variant, reference, and provenance data
+  before the registry is used for candidate suggestions.
 - Current resolution states are:
   - `CORROBORATED`;
   - `KNOWN_NUMBER_REVIEW`;
@@ -415,7 +420,7 @@ The recognition core is ready to support production workflow development when:
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
 - Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
   OCR candidate behavior have been extracted into tested modules.
-- The current baseline is 83 passing unit tests plus 94 passing regression
+- The current baseline is 89 passing unit tests plus 94 passing regression
   checks, two known Qwen-variability warnings, and zero failures.
 - Initial OCR/Qwen routing and independent-DINO candidate-disposition policies
   are now model-free and tested. Further extraction should accompany cohesive
@@ -444,8 +449,8 @@ The recognition core is ready to support production workflow development when:
 - Continue safe background work while that checkpoint is reviewed.
 - Prioritize unresolved work and target sales-ready output by the 3pm sales window.
 - Implement persistent identity registry behavior. The model-free multi-variant
-  registry and human-confirmation contracts are complete; durable loading and
-  reviewer integration remain.
+  registry, human-confirmation contract, and atomic JSON persistence are
+  complete; confirmation import and reviewer integration remain.
 - Provide an efficient human-review workflow.
 - Implement non-destructive export/copy organization.
 

@@ -8,6 +8,8 @@ photographs. Start with ``EventRegistry`` when reading this file.
 
 from dataclasses import asdict, dataclass, field
 from datetime import date
+import json
+from pathlib import Path
 
 from racesort.identifiers import normalize_number
 
@@ -189,6 +191,109 @@ class EventRegistry:
                 for number, entry in self.entries.items()
             },
         }
+
+    @classmethod
+    def from_dict(cls, data):
+        """Validate and reconstruct a registry from decoded JSON data."""
+
+        if not isinstance(data, dict):
+            raise ValueError("registry data must be an object")
+        if data.get("schema_version") != 1:
+            raise ValueError("unsupported registry schema_version")
+
+        event = data.get("event")
+        numbers = data.get("numbers")
+        if not isinstance(event, dict) or not isinstance(numbers, dict):
+            raise ValueError("registry event and numbers must be objects")
+
+        try:
+            registry = cls(
+                event_id=event["event_id"],
+                event_date=event.get("event_date"),
+                race_type=event["race_type"],
+                schema_version=1,
+            )
+        except KeyError as exc:
+            raise ValueError(f"missing registry event field: {exc.args[0]}") from exc
+
+        for number_key, entry_data in numbers.items():
+            if not isinstance(entry_data, dict):
+                raise ValueError("each number entry must be an object")
+            race_number = require_race_number(entry_data.get("race_number"))
+            if number_key != race_number:
+                raise ValueError("number key must match canonical race_number")
+
+            variants = entry_data.get("variants")
+            if not isinstance(variants, dict):
+                raise ValueError("entry variants must be an object")
+
+            for variant_key, variant_data in variants.items():
+                if not isinstance(variant_data, dict):
+                    raise ValueError("each variant must be an object")
+                if variant_data.get("variant_id") != variant_key:
+                    raise ValueError("variant key must match variant_id")
+                if variant_data.get("vehicle_type") != registry.race_type:
+                    raise ValueError("variant vehicle_type must match event race_type")
+
+                metadata = variant_data.get("metadata", {})
+                references = variant_data.get("references", [])
+                if not isinstance(metadata, dict):
+                    raise ValueError("variant metadata must be an object")
+                if not isinstance(references, list):
+                    raise ValueError("variant references must be a list")
+
+                registry.add_variant(race_number, variant_key, metadata)
+                for reference_data in references:
+                    if not isinstance(reference_data, dict):
+                        raise ValueError("each confirmed reference must be an object")
+                    reference_metadata = reference_data.get("metadata", {})
+                    if not isinstance(reference_metadata, dict):
+                        raise ValueError("reference metadata must be an object")
+                    try:
+                        reference = ConfirmedReference(
+                            source_photo=reference_data["source_photo"],
+                            crop=reference_data["crop"],
+                            confirmation_source=reference_data[
+                                "confirmation_source"
+                            ],
+                            group=reference_data.get("group"),
+                            cycle=reference_data.get("cycle"),
+                            session_id=reference_data.get("session_id"),
+                            metadata=reference_metadata,
+                        )
+                    except KeyError as exc:
+                        raise ValueError(
+                            f"missing confirmed reference field: {exc.args[0]}"
+                        ) from exc
+                    registry.add_reference(race_number, variant_key, reference)
+
+        return registry
+
+    @classmethod
+    def load(cls, path):
+        """Load and validate a registry JSON file."""
+
+        try:
+            with Path(path).open(encoding="utf-8") as registry_file:
+                data = json.load(registry_file)
+        except json.JSONDecodeError as exc:
+            raise ValueError("registry file is not valid JSON") from exc
+        return cls.from_dict(data)
+
+    def save(self, path):
+        """Atomically save generated registry JSON without touching photos."""
+
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = path.with_suffix(f"{path.suffix}.tmp")
+
+        try:
+            with temporary_path.open("w", encoding="utf-8") as registry_file:
+                json.dump(self.to_dict(), registry_file, indent=2)
+            temporary_path.replace(path)
+        finally:
+            if temporary_path.exists():
+                temporary_path.unlink()
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,8 @@
 """Unit tests for the event-scoped multi-variant registry contract."""
 
+import json
+from pathlib import Path
+import tempfile
 import unittest
 
 from racesort.registry import (
@@ -115,6 +118,77 @@ class EventRegistryTests(unittest.TestCase):
             self.registry.add_reference(
                 "49", "missing", reference("photo.jpg", "crop.jpg")
             )
+
+
+class RegistryPersistenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.path = Path(self.temporary_directory.name) / "event-registry.json"
+        self.registry = EventRegistry("event-007", "motorcycle", "2026-09-19")
+        self.registry.add_variant("007", "007-a", {"bike_colors": ["red"]})
+        self.registry.add_reference(
+            "007",
+            "007-a",
+            reference(
+                "GGBM0007.JPG",
+                "motorcycle-01.jpg",
+                group="A",
+                cycle=1,
+                session_id="cycle-1-a",
+                metadata={"helmet_colors": ["black"]},
+            ),
+        )
+
+    def tearDown(self):
+        self.temporary_directory.cleanup()
+
+    def test_save_and_load_round_trip_without_identity_loss(self):
+        self.registry.save(self.path)
+        loaded = EventRegistry.load(self.path)
+
+        self.assertEqual(loaded.to_dict(), self.registry.to_dict())
+        self.assertIn("007", loaded.entries)
+        self.assertEqual(loaded.entries["007"].race_number, "007")
+
+    def test_save_replaces_generated_file_and_leaves_no_temporary_file(self):
+        self.path.write_text("old generated registry", encoding="utf-8")
+        self.registry.save(self.path)
+
+        self.assertEqual(json.loads(self.path.read_text())["schema_version"], 1)
+        self.assertFalse(self.path.with_suffix(".json.tmp").exists())
+
+    def test_failed_save_preserves_existing_registry(self):
+        self.path.write_text("preserve me", encoding="utf-8")
+        self.registry.entries["007"].variants["007-a"].metadata["bad"] = {1, 2}
+
+        with self.assertRaises(TypeError):
+            self.registry.save(self.path)
+
+        self.assertEqual(self.path.read_text(encoding="utf-8"), "preserve me")
+        self.assertFalse(self.path.with_suffix(".json.tmp").exists())
+
+    def test_invalid_json_is_rejected(self):
+        self.path.write_text("not JSON", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "not valid JSON"):
+            EventRegistry.load(self.path)
+
+    def test_unsupported_schema_is_rejected(self):
+        data = self.registry.to_dict()
+        data["schema_version"] = 99
+        with self.assertRaisesRegex(ValueError, "schema_version"):
+            EventRegistry.from_dict(data)
+
+    def test_number_and_variant_key_mismatches_are_rejected(self):
+        data = self.registry.to_dict()
+        data["numbers"]["7"] = data["numbers"].pop("007")
+        with self.assertRaisesRegex(ValueError, "number key"):
+            EventRegistry.from_dict(data)
+
+        data = self.registry.to_dict()
+        variant = data["numbers"]["007"]["variants"].pop("007-a")
+        data["numbers"]["007"]["variants"]["wrong-key"] = variant
+        with self.assertRaisesRegex(ValueError, "variant key"):
+            EventRegistry.from_dict(data)
 
 
 class HumanConfirmationTests(unittest.TestCase):

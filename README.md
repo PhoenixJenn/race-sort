@@ -16,7 +16,7 @@ It is being split into small tested modules incrementally, without changing the
 validated routing behavior.
 
 ```text
-Unit tests: 83 passed
+Unit tests: 89 passed
 Regression: 94 passed, 2 known variability warnings, 0 failures
 Dataset:    19 photographs, 33 detected vehicle crops
 ```
@@ -146,6 +146,6 @@ Prefer focused modules that are easy to read and test. Approaching 1,000 lines
 is a signal to assess extraction opportunities, but never justify a broad
 rewrite solely to meet a line-count target.
 
-The event-scoped multi-variant registry contract is now model-free and tested.
-The next step is durable JSON round-trip support, followed by a small importer
-that converts first-cycle human confirmation records into registry updates.
+The event-scoped registry now has validated, atomic JSON save/load support. The
+next step is a small model-free importer that converts first-cycle human
+confirmation records into registry updates and reports rejected/invalid rows.

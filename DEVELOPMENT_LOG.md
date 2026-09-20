@@ -1762,3 +1762,22 @@ The size review found `racesort/registry.py` at 280 lines and its tests at 181
 lines. Both remain below the 1,000-line review threshold and are cohesive. The
 next step is durable JSON load/save support and first-cycle confirmation import,
 not reviewer UI changes or new inference.
+
+## 2026-09-19 — Atomic Registry Persistence
+
+`EventRegistry` now saves and loads a versioned JSON representation. Loading
+reconstructs entries through the same validated add-variant/add-reference paths
+and rejects unsupported schemas, malformed structures, non-canonical number or
+variant keys, vehicle-type mismatches, and invalid reference provenance.
+
+Saving writes a temporary file beside the generated registry and atomically
+replaces the destination only after JSON serialization succeeds. A forced
+serialization-failure test proved that an existing registry remains unchanged
+and the temporary file is removed. Round-trip tests also protect leading-zero
+identity, event context, variant metadata, and reference metadata.
+
+All 89 unit tests passed. Compilation and the stored regression checker passed
+with 94 checks, the same two known warnings, and zero failures. The size review
+found `racesort/registry.py` at 385 lines and its tests at 255 lines; both remain
+cohesive and below the 1,000-line review threshold. The next step is a model-free
+first-cycle confirmation importer with explicit per-row outcomes.

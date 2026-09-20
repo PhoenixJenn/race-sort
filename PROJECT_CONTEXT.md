@@ -734,7 +734,7 @@ regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-19, all 83 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 89 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
 warnings, and zero failures. `test_pipeline.py` is 2,186 lines, down from 2,934
 before the incremental extractions. The latest completed code milestone is the
@@ -742,18 +742,18 @@ OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Add durable JSON round-trip support for `EventRegistry`, including schema
-validation and atomic writes to a generated output path. Then build a small,
-model-free importer that converts first-cycle `HumanConfirmation` records into
-registry updates. Do not edit the HTML reviewer or run new inference until the
-saved format can be loaded back without losing event, variant, reference,
-metadata, or string-identifier information.
+Build a small, model-free importer that converts first-cycle human-confirmation
+records into `HumanConfirmation` objects and applies them to an `EventRegistry`.
+The importer must report accepted, corrected, rejected, duplicate, and invalid
+rows without silently discarding failures. It must validate the event context
+and preserve source photo/crop provenance. Use an explicit fixture format first;
+do not change the HTML reviewer until the importer contract is tested.
 
-After persistence and import are protected:
+After import is protected:
 
-1. Connect the first-cycle reviewer export to the importer incrementally.
+1. Connect the reviewer export to the importer incrementally.
 2. Use the confirmed registry for later-cycle candidate suggestions.
-3. Run a fresh full regression pipeline when new inference output is warranted.
+3. Run fresh inference only when integration requires new output.
 4. Resume larger-data accuracy/performance evaluation and platform work.
 
 ## Engineering Documentation TODO

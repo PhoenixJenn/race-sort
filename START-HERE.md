@@ -1193,9 +1193,9 @@ Once those five things happen, the project has effectively been handed off.
 The correct next sentence for a fresh RaceSort development session is:
 
 > **The working pipeline and model-free multi-variant registry contract are
-> protected by 83 unit tests plus the 19-photo / 33-crop regression checker.
-> Next add durable registry JSON round trips, then import first-cycle human
-> confirmations; never treat a race number as a unique motorcycle identity.**
+> protected by 89 unit tests plus the 19-photo / 33-crop regression checker.
+> Next implement a model-free first-cycle confirmation importer with explicit
+> row outcomes; never treat a race number as a unique motorcycle identity.**
 
 That is where development should resume.
 
@@ -1206,7 +1206,7 @@ branch:          master
 latest code:     OCR candidate normalization/filtering extraction
 remote state:    verify with git branch -vv at session start
 working tree:    verify with git status --short at session start
-unit tests:      83 passed
+unit tests:      89 passed
 regression:      94 passed, 2 known warnings, 0 failures
 main pipeline:   test_pipeline.py, 2,186 lines
 ```
