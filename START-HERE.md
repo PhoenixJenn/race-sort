@@ -1192,24 +1192,24 @@ Once those five things happen, the project has effectively been handed off.
 
 The correct next sentence for a fresh RaceSort development session is:
 
-> **The working pipeline is consolidated and protected by 49 unit tests plus
+> **The working pipeline is consolidated and protected by 54 unit tests plus
 > the 19-photo / 33-crop regression checker. Continue the small-module refactor
-> by extracting OCR candidate normalization and filtering, without changing
-> routing behavior; then isolate and test routing policy before implementing
+> by isolating and testing routing policy, without changing recognition
+> behavior; then proceed toward
 > the first-cycle confirmation and multi-variant event registry.**
 
 That is where development should resume.
 
-Current Git handoff as of 2026-09-04:
+Current handoff as of 2026-09-19:
 
 ```text
 branch:          master
-latest code:     4b13aa9 Extract DINO visual matching
-remote state:    local master matches origin/master
-working tree:    clean before this documentation-only handoff update
-unit tests:      49 passed
+latest code:     OCR candidate normalization/filtering extraction
+remote state:    verify with git branch -vv at session start
+working tree:    verify with git status --short at session start
+unit tests:      54 passed
 regression:      94 passed, 2 known warnings, 0 failures
-main pipeline:   test_pipeline.py, 2,299 lines
+main pipeline:   test_pipeline.py, 2,254 lines
 ```
 
 The recent behavior-preserving modules are:
@@ -1217,6 +1217,7 @@ The recent behavior-preserving modules are:
 ```text
 racesort/config.py
 racesort/identifiers.py
+racesort/ocr.py
 racesort/quality.py
 racesort/detection.py
 racesort/prompts.py

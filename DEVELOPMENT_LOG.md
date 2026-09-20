@@ -1679,3 +1679,20 @@ plain-language module docstring at the top of each actively maintained Python
 file describing its purpose, status, inputs, outputs, and reading entry points.
 Inventory current code versus experiments first; do not combine this task with
 a large refactor.
+
+## 2026-09-19 — Incremental Refactor: OCR Candidate Module
+
+RapidOCR candidate normalization and filtering moved from `test_pipeline.py`
+to `racesort/ocr.py` without changing behavior. The module preserves leading
+zeros, valid `0`, supported alphanumeric identifiers, encounter order, and the
+existing requirement that an OCR candidate contain at least one digit. It
+continues to remove duplicates and reject invalid or likely letter-only
+sponsor/logo text.
+
+Five model-free tests cover missing results, leading zeros and zero, case/space
+normalization, invalid and letter-only rejection, and stable de-duplication.
+All 54 unit tests passed. Python compilation and the stored-output regression
+checker passed with 94 checks, the same two known Qwen-variation warnings, and
+zero failures. `README.md` was rewritten to describe the current repository,
+and the PRD was updated with the explicit OCR candidate requirements and
+current test baseline.

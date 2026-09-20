@@ -720,6 +720,7 @@ Current code organization:
 test_pipeline.py                 working end-to-end regression pipeline
 racesort/config.py               validated settings and event context
 racesort/identifiers.py          race-number string normalization
+racesort/ocr.py                  RapidOCR candidate normalization/filtering
 racesort/quality.py              blur and non-primary filters
 racesort/detection.py            box geometry and merged-box recovery
 racesort/prompts.py              number and metadata prompt policy
@@ -730,30 +731,28 @@ regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-04, all 49 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 54 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
-warnings, and zero failures. `test_pipeline.py` is 2,299 lines, down from 2,934
-before the incremental extractions. The latest pushed code commit is `4b13aa9`
-(`Extract DINO visual matching`), and local `master` matches `origin/master`.
+warnings, and zero failures. `test_pipeline.py` is 2,254 lines, down from 2,934
+before the incremental extractions. The latest completed code milestone is the
+OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Continue the incremental consolidation by extracting OCR candidate normalization
-and filtering from `test_pipeline.py` into a small model-free module. Preserve
-candidate order, leading zeros, valid `0`, alphanumeric safety, the requirement
-that a candidate contain at least one digit, and exact existing routing
-behavior. Add focused unit tests, run the complete unit suite and existing
-regression checker, then commit the change locally before proceeding.
+Extract routing decisions from `test_pipeline.py` into a thoroughly tested,
+model-free policy module. Preserve the current direct-first behavior, exact
+three-signal confirmation requirement, conservative review fallbacks, route
+names, call-count behavior, and string identifiers. Do not combine this with a
+new recognition experiment or threshold change.
 
-After OCR extraction:
+After routing extraction:
 
-1. Extract routing decisions into a thoroughly tested policy module.
-2. Run a fresh full regression pipeline when an actual inference run is
+1. Run a fresh full regression pipeline when an actual inference run is
    warranted, rather than relying only on stored-output checks.
-3. Implement the first-cycle human confirmation and multi-variant event
+2. Implement the first-cycle human confirmation and multi-variant event
    registry, allowing distinct motorcycles to share one race number.
-4. Resume accuracy/performance evaluation on the larger labeled dataset.
-5. Complete hardware profiles, clean-start/offline checks, and Windows testing.
+3. Resume accuracy/performance evaluation on the larger labeled dataset.
+4. Complete hardware profiles, clean-start/offline checks, and Windows testing.
 
 ## Engineering Documentation TODO
 

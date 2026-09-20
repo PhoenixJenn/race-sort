@@ -22,6 +22,7 @@ from transformers import (
 )
 
 from racesort.identifiers import normalize_number
+from racesort.ocr import extract_ocr_candidates
 from racesort.config import RaceSortConfig
 from racesort.detection import (
     resolve_merged_vehicle_boxes,
@@ -160,52 +161,6 @@ def read_fast_number(
         number,
         result.elapsed_seconds,
         result.raw_response,
-    )
-
-
-def extract_ocr_candidates(result):
-    """Extract unique plausible race-number candidates."""
-
-    candidates = []
-
-    if result is None:
-        return candidates
-
-    texts = getattr(
-        result,
-        "txts",
-        None,
-    )
-
-    if not texts:
-        return candidates
-
-    for text in texts:
-
-        compact = (
-            str(text)
-            .strip()
-            .upper()
-            .replace(" ", "")
-        )
-
-        candidate = normalize_number(
-            compact
-        )
-
-        if candidate is None:
-            continue
-
-        if not any(
-            character.isdigit()
-            for character in candidate
-        ):
-            continue
-
-        candidates.append(candidate)
-
-    return list(
-        dict.fromkeys(candidates)
     )
 
 

@@ -187,6 +187,12 @@ absolute sharpness < 150
 ### FR-5: OCR and Vision Routing
 
 - RapidOCR must provide the inexpensive first evidence layer.
+- OCR text must be normalized through the shared race-number string policy.
+- OCR normalization must preserve leading zeros, valid `0`, and supported
+  alphanumeric identifiers.
+- Current conservative OCR candidates must contain at least one digit; likely
+  sponsor/logo text containing only letters must not enter number routing.
+- Duplicate OCR candidates must be removed without changing encounter order.
 - Every crop reaching recognition must receive an unanchored direct Qwen number read under the current conservative policy.
 - Candidate-anchored Qwen verification must not be treated as independent of its OCR suggestion.
 - Automatic confirmation requires exact agreement among:
@@ -393,7 +399,12 @@ The recognition core is ready to support production workflow development when:
 ### Milestone 1: Consolidated Regression Pipeline — Substantially Complete
 
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
-- Remaining work includes continued accuracy validation and removal of obsolete experimental dependencies from the main script when safe.
+- Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
+  OCR candidate behavior have been extracted into tested modules.
+- The current baseline is 54 passing unit tests plus 94 passing regression
+  checks, two known Qwen-variability warnings, and zero failures.
+- Remaining structural work includes extracting routing policy and continuing
+  to remove obsolete experimental dependencies from the main script when safe.
 
 ### Milestone 2: Hardware-Agnostic Accuracy and Performance
 
