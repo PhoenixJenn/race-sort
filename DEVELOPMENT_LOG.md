@@ -1736,3 +1736,29 @@ extracted application modules at 26–313 lines, the cohesive regression checker
 at 482 lines, and `test_pipeline.py` at 2,186 lines. The main pipeline remains
 the sole major outlier, but further extraction should now be tied to cohesive
 event-registry work rather than delaying that product milestone for cleanup.
+
+## 2026-09-19 — Multi-Variant Registry and Human Confirmation Contract
+
+The model-free `racesort/registry.py` contract now represents one event as
+race-number strings containing one or more visually distinct vehicle/rider
+variants. Each variant can retain multiple confirmed crop references, metadata,
+and group/cycle/session provenance. The contract rejects numeric Python race
+numbers, preserves `0`, leading zeros, and alphanumeric identifiers, prevents a
+crop from being reassigned across variants, and never modifies source photos.
+
+`HumanConfirmation` separately represents accepting or correcting a number,
+rejecting it, matching an existing variant, or creating a distinct variant.
+Rejected decisions do not mutate the registry. Event dates, supported vehicle
+types, rider groups, and cycle values are validated at the contract boundary.
+
+Fourteen tests protect multi-variant numbers, multiple viewpoints, provenance,
+JSON-ready serialization, idempotent duplicate references, cross-variant
+reassignment prevention, identifier types, context validation, and all human
+confirmation actions. All 83 unit tests passed. Compilation and the stored
+regression checker passed with 94 checks, the same two known warnings, and zero
+failures.
+
+The size review found `racesort/registry.py` at 280 lines and its tests at 181
+lines. Both remain below the 1,000-line review threshold and are cohesive. The
+next step is durable JSON load/save support and first-cycle confirmation import,
+not reviewer UI changes or new inference.

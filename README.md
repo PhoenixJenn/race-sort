@@ -16,7 +16,7 @@ It is being split into small tested modules incrementally, without changing the
 validated routing behavior.
 
 ```text
-Unit tests: 69 passed
+Unit tests: 83 passed
 Regression: 94 passed, 2 known variability warnings, 0 failures
 Dataset:    19 photographs, 33 detected vehicle crops
 ```
@@ -69,6 +69,7 @@ racesort/quality.py             blur and non-primary filters
 racesort/detection.py           box geometry and merged-box recovery
 racesort/prompts.py             number and metadata prompt policy
 racesort/qwen.py                Ollama/Qwen wrapper and response cache
+racesort/registry.py            event-scoped multi-variant registry contract
 racesort/routing.py             model-free OCR/Qwen routing safety policy
 racesort/visual_matching.py     DINO device, embedding, and similarity helpers
 tests/                          model-free unit tests
@@ -145,7 +146,6 @@ Prefer focused modules that are easy to read and test. Approaching 1,000 lines
 is a signal to assess extraction opportunities, but never justify a broad
 rewrite solely to meet a line-count target.
 
-The next product milestone is first-cycle human confirmation and an
-event-scoped multi-variant registry. The registry must allow several visually
-distinct motorcycles to share one race-number string and retain multiple
-confirmed viewpoint references for each variant.
+The event-scoped multi-variant registry contract is now model-free and tested.
+The next step is durable JSON round-trip support, followed by a small importer
+that converts first-cycle human confirmation records into registry updates.

@@ -726,6 +726,7 @@ racesort/quality.py              blur and non-primary filters
 racesort/detection.py            box geometry and merged-box recovery
 racesort/prompts.py              number and metadata prompt policy
 racesort/qwen.py                 Ollama/Qwen wrapper and response cache
+racesort/registry.py             event-scoped multi-variant registry contract
 racesort/routing.py              model-free OCR/Qwen routing safety policy
 racesort/visual_matching.py      DINO device, embedding, and similarity helpers
 tests/                           model-free unit tests for extracted modules
@@ -733,7 +734,7 @@ regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-19, all 69 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 83 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
 warnings, and zero failures. `test_pipeline.py` is 2,186 lines, down from 2,934
 before the incremental extractions. The latest completed code milestone is the
@@ -741,24 +742,19 @@ OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Design and implement the first-cycle human-confirmation data contract and
-event-scoped multi-variant registry incrementally. The registry must map a
-race-number string to multiple distinct motorcycle/rider variants, each with
-multiple confirmed reference views and supported metadata. Human confirmation
-must be able to accept, correct, reject, or distinguish variants without making
-the race number itself a unique identity key.
+Add durable JSON round-trip support for `EventRegistry`, including schema
+validation and atomic writes to a generated output path. Then build a small,
+model-free importer that converts first-cycle `HumanConfirmation` records into
+registry updates. Do not edit the HTML reviewer or run new inference until the
+saved format can be loaded back without losing event, variant, reference,
+metadata, or string-identifier information.
 
-Before changing the reviewer UI or launching new inference, begin with the
-smallest model-free registry representation and unit tests. Preserve originals,
-string identifiers, provenance, event/group/cycle/session separation, and the
-rule that one weak visual mismatch cannot reject every variant for a number.
+After persistence and import are protected:
 
-After the registry contract is protected:
-
-1. Connect first-cycle human confirmation to the registry incrementally.
-2. Run a fresh full regression pipeline when new inference output is warranted.
-3. Resume accuracy/performance evaluation on the larger labeled dataset.
-4. Complete hardware profiles, clean-start/offline checks, and Windows testing.
+1. Connect the first-cycle reviewer export to the importer incrementally.
+2. Use the confirmed registry for later-cycle candidate suggestions.
+3. Run a fresh full regression pipeline when new inference output is warranted.
+4. Resume larger-data accuracy/performance evaluation and platform work.
 
 ## Engineering Documentation TODO
 

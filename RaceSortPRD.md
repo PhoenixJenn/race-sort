@@ -212,6 +212,11 @@ absolute sharpness < 150
 - A mismatch with one variant must not reject a candidate until the other confirmed variants for that number have been considered.
 - A candidate crop must never be used as its own DINO reference.
 - Missing reference evidence must not be treated as conflicting evidence.
+- Registry identity must be scoped as event → race-number string → visual
+  variant; a race number alone must never be treated as a unique vehicle key.
+- Each confirmed reference must retain source photo, crop, confirmation source,
+  and available group/cycle/session provenance without modifying the source.
+- One crop must not be assigned to multiple registry variants.
 - Current resolution states are:
   - `CORROBORATED`;
   - `KNOWN_NUMBER_REVIEW`;
@@ -248,6 +253,9 @@ AND best independent DINO similarity >= 0.90
   - correctness or disposition;
   - notes.
 - Review must minimize typing and make accepting, correcting, or rejecting a candidate efficient.
+- First-cycle confirmation must represent number acceptance, number correction,
+  rejection, matching an existing variant, and creating a distinct new variant.
+- Rejection must not mutate the confirmed event registry.
 
 ### FR-9: Evidence and Provenance
 
@@ -407,7 +415,7 @@ The recognition core is ready to support production workflow development when:
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
 - Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
   OCR candidate behavior have been extracted into tested modules.
-- The current baseline is 69 passing unit tests plus 94 passing regression
+- The current baseline is 83 passing unit tests plus 94 passing regression
   checks, two known Qwen-variability warnings, and zero failures.
 - Initial OCR/Qwen routing and independent-DINO candidate-disposition policies
   are now model-free and tested. Further extraction should accompany cohesive
@@ -435,7 +443,9 @@ The recognition core is ready to support production workflow development when:
 - Support a human-confirmation checkpoint after the first complete A/B/C cycle.
 - Continue safe background work while that checkpoint is reviewed.
 - Prioritize unresolved work and target sales-ready output by the 3pm sales window.
-- Implement persistent identity registry behavior.
+- Implement persistent identity registry behavior. The model-free multi-variant
+  registry and human-confirmation contracts are complete; durable loading and
+  reviewer integration remain.
 - Provide an efficient human-review workflow.
 - Implement non-destructive export/copy organization.
 
