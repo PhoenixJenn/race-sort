@@ -1696,3 +1696,23 @@ checker passed with 94 checks, the same two known Qwen-variation warnings, and
 zero failures. `README.md` was rewritten to describe the current repository,
 and the PRD was updated with the explicit OCR candidate requirements and
 current test baseline.
+
+## 2026-09-19 — Incremental Refactor: Recognition Routing Policy
+
+The initial OCR/Qwen routing decision table moved from the nested inference
+loop in `test_pipeline.py` to the model-free `racesort/routing.py` module.
+Inference remains direct-first; anchored verification is requested only when
+the direct read matches an OCR candidate. The six existing route names and the
+`CONFIRMED`, `QWEN_CANDIDATE`, and `REVIEW` decisions remain unchanged.
+
+Eight tests cover verification planning, exact three-way agreement, rejected
+verification, OCR/direct conflict, unknown direct reads, direct-only evidence,
+no evidence, leading-zero strings, alphanumeric strings, and valid `0`. All 62
+unit tests passed. Compilation and the stored-output regression checker passed
+with 94 checks, the same two known warnings, and zero failures.
+
+The milestone size review found that extracted application modules range from
+26 to 313 lines, while `test_pipeline.py` remains the clear outlier at 2,209
+lines. The PRD and README now require a size/cohesion review at every milestone
+and an explicit refactor assessment as actively maintained Python files
+approach 1,000 lines. This is a review trigger, not a mandate for risky rewrites.

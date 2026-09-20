@@ -324,6 +324,12 @@ AND best independent DINO similarity >= 0.90
 - Changes should be incremental and regression-tested.
 - Large refactors must wait until working behavior is protected.
 - Code changes should include exact test commands and expected outcomes.
+- Actively maintained Python file sizes must be reviewed at each completed
+  milestone and recorded when a file is a clear outlier.
+- Files approaching 1,000 lines require an explicit cohesion/refactor review;
+  line count is a warning signal, not permission for a behavior-changing rewrite.
+- New modules should have concise plain-language docstrings describing purpose,
+  status, inputs, outputs, and important safety constraints.
 
 ### Portability
 
@@ -401,10 +407,11 @@ The recognition core is ready to support production workflow development when:
 - DETR, quality filters, OCR/Qwen routing, independent DINO, evidence output, performance summary, and regression checking are integrated.
 - Configuration, identifier, quality, detection, prompt, Qwen/cache, DINO, and
   OCR candidate behavior have been extracted into tested modules.
-- The current baseline is 54 passing unit tests plus 94 passing regression
+- The current baseline is 62 passing unit tests plus 94 passing regression
   checks, two known Qwen-variability warnings, and zero failures.
-- Remaining structural work includes extracting routing policy and continuing
-  to remove obsolete experimental dependencies from the main script when safe.
+- Initial OCR/Qwen routing policy is now model-free and tested. Remaining
+  structural work includes candidate-disposition policy and continued removal
+  of obsolete experimental dependencies from the main script when safe.
 
 ### Milestone 2: Hardware-Agnostic Accuracy and Performance
 

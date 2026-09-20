@@ -16,7 +16,7 @@ It is being split into small tested modules incrementally, without changing the
 validated routing behavior.
 
 ```text
-Unit tests: 54 passed
+Unit tests: 62 passed
 Regression: 94 passed, 2 known variability warnings, 0 failures
 Dataset:    19 photographs, 33 detected vehicle crops
 ```
@@ -68,6 +68,7 @@ racesort/quality.py             blur and non-primary filters
 racesort/detection.py           box geometry and merged-box recovery
 racesort/prompts.py             number and metadata prompt policy
 racesort/qwen.py                Ollama/Qwen wrapper and response cache
+racesort/routing.py             model-free OCR/Qwen routing safety policy
 racesort/visual_matching.py     DINO device, embedding, and similarity helpers
 tests/                          model-free unit tests
 regression/                     stored-output regression checker and fixtures
@@ -138,7 +139,12 @@ Update documentation with each milestone:
 - `README.md` when setup, commands, project structure, or current status changes;
 - `DEVELOPMENT_LOG.md` with measured results and why a decision was made.
 
-The immediate next structural milestone is extracting routing decisions into a
-model-free, thoroughly tested policy module. After that, RaceSort can proceed
-toward first-cycle human confirmation and the event-scoped multi-variant
-registry required when different motorcycles share the same race number.
+At every milestone, review line counts for actively maintained Python files.
+Prefer focused modules that are easy to read and test. Approaching 1,000 lines
+is a signal to assess extraction opportunities, but never justify a broad
+rewrite solely to meet a line-count target.
+
+The immediate next structural milestone is extracting the independent-DINO
+candidate disposition policy (`CORROBORATED`, `KNOWN_NUMBER_REVIEW`, and
+`UNSUPPORTED`) from the pipeline. After that, RaceSort can proceed toward
+first-cycle human confirmation and the event-scoped multi-variant registry.

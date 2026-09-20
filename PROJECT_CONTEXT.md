@@ -725,27 +725,29 @@ racesort/quality.py              blur and non-primary filters
 racesort/detection.py            box geometry and merged-box recovery
 racesort/prompts.py              number and metadata prompt policy
 racesort/qwen.py                 Ollama/Qwen wrapper and response cache
+racesort/routing.py              model-free OCR/Qwen routing safety policy
 racesort/visual_matching.py      DINO device, embedding, and similarity helpers
 tests/                           model-free unit tests for extracted modules
 regression/check_pipeline_results.py
                                  established output regression checker
 ```
 
-As of 2026-09-19, all 54 unit tests pass. The established 19-photo / 33-crop
+As of 2026-09-19, all 62 unit tests pass. The established 19-photo / 33-crop
 regression reports 94 passed checks, two known nondeterministic Qwen/workload
-warnings, and zero failures. `test_pipeline.py` is 2,254 lines, down from 2,934
+warnings, and zero failures. `test_pipeline.py` is 2,209 lines, down from 2,934
 before the incremental extractions. The latest completed code milestone is the
 OCR candidate extraction; use `git log -1` for its commit identifier.
 
 ## Immediate Next Milestone
 
-Extract routing decisions from `test_pipeline.py` into a thoroughly tested,
-model-free policy module. Preserve the current direct-first behavior, exact
-three-signal confirmation requirement, conservative review fallbacks, route
-names, call-count behavior, and string identifiers. Do not combine this with a
-new recognition experiment or threshold change.
+Extract the independent-DINO candidate disposition rules from
+`test_pipeline.py` into a thoroughly tested, model-free policy function.
+Preserve the current `CORROBORATED`, `KNOWN_NUMBER_REVIEW`, and `UNSUPPORTED`
+states, reason strings, `0.90` threshold semantics, and the rule that missing
+reference evidence is not conflicting evidence. Do not combine this with a new
+recognition experiment or threshold change.
 
-After routing extraction:
+After candidate-disposition extraction:
 
 1. Run a fresh full regression pipeline when an actual inference run is
    warranted, rather than relying only on stored-output checks.
